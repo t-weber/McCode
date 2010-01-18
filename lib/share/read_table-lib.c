@@ -1,7 +1,7 @@
 /*******************************************************************************
 *
 * McStas, neutron ray-tracing package
-*         Copyright (C) 1997-2009, All rights reserved
+*         Copyright 1997-2002, All rights reserved
 *         Risoe National Laboratory, Roskilde, Denmark
 *         Institut Laue Langevin, Grenoble, France
 *
@@ -11,8 +11,8 @@
 * Written by: EF
 * Date: Aug 28, 2002
 * Origin: ILL
-* Release: McStas CVS_090504
-* Version: $Revision: 1.42 $
+* Release: McStas 1.6
+* Version: $Revision: 1.38 $
 *
 * This file is to be imported by components that may read data from table files
 * It handles some shared functions. Embedded within instrument in runtime mode.
@@ -21,6 +21,121 @@
 * Usage: within SHARE
 * %include "read_table-lib"
 *
+* $Id: read_table-lib.c,v 1.38 2008-07-03 09:40:01 farhi Exp $
+*
+* $Log: not supported by cvs2svn $
+* Revision 1.37  2006/12/01 16:17:10  farhi
+* cosmetics
+*
+* Revision 1.36  2006/11/29 14:07:09  farhi
+* cosmetics
+*
+* Revision 1.35  2006/11/27 15:29:39  farhi
+* Small improvement in interpolation methods of read-table lib.
+*
+* Revision 1.34  2006/10/03 22:16:45  farhi
+* Added realistic PSD_Detector component with Gas tables
+* Added test for Isotropic_Sqw
+* Data files can be in local path, MCSTAS/data and contrib sub-dirs
+*
+* Revision 1.33  2006/07/21 09:05:05  farhi
+* fixed bug in 2D interpolation routine
+*
+* Revision 1.32  2006/03/15 16:03:27  farhi
+* interpolation functions now in the table handling by default.
+* corrected nelements in array length return value of Table_Read_Array
+*
+* Revision 1.31  2006/02/14 15:29:40  farhi
+* Fixed error when importing block number > 1
+*
+* Revision 1.30  2006/01/30 12:55:10  farhi
+* incomplete table warning displays file name
+*
+* Revision 1.29  2005/10/14 11:38:28  farhi
+* Corrected missing #define
+*
+* Revision 1.28  2005/10/12 14:04:29  farhi
+* Added function to parse header, Table_ParseHeader(header, "symbol1", ... , NULL)
+* Useful for complex sample components, as well as mcformat/mcconvert stuff.
+*
+* Revision 1.27  2005/10/05 08:50:53  farhi
+* Extended buffer for Table line read (fgetl) to 64 ko instead of 4 ko.
+* It failed with large matrices (e.g. more than 100 columns)
+*
+* Revision 1.26  2005/09/16 14:19:03  farhi
+* Correct bug #56: SEGV when opening a non existent file with read-table. Was reported on usage of PowderN
+*
+* Revision 1.25  2005/08/31 14:50:29  farhi
+* Fixed bugs when handling vectors with swapped (i,j) indexes
+*
+* Revision 1.24  2005/07/25 14:55:08  farhi
+* DOC update:
+* checked all parameter [unit] + text to be OK
+* set all versions to CVS Revision
+*
+* Revision 1.23  2005/07/20 13:08:43  farhi
+* Changed Table_Init calling sequence (overrides Table_Alloc)
+*
+* Revision 1.22  2005/07/12 14:46:26  farhi
+* Added Table_Alloc to create a user empty Table
+* and Table_SetElement
+*
+* Revision 1.21  2005/07/08 13:15:43  farhi
+* Mismatch in argument swap
+*
+* Revision 1.20  2005/07/07 14:16:57  farhi
+* Min and Max are computed for both row and column vectors
+*
+* Revision 1.19  2005/07/06 09:50:45  farhi
+* Added check for non existing data file in Table_*_Array functions
+*
+* Revision 1.18  2005/07/06 08:44:28  farhi
+* Display headers in Table_Info
+* Also works with Arrays
+*
+* Revision 1.17  2005/07/05 14:30:27  farhi
+* misprint
+*
+* Revision 1.16  2005/07/05 14:25:42  farhi
+* added file size in t_Table structure
+*
+* Revision 1.15  2005/07/05 12:06:40  farhi
+* added new functions for table Array handling
+* to be used in Isotropic_sqw and mcformat
+*
+* Revision 1.13  2005/01/20 14:16:43  farhi
+* New functions to read separately all numerical bmocks in a text data file
+* Will be used for Data conversion from PGPLOT/McStas (mcformat tool)
+*
+* Revision 1.12  2004/09/10 15:12:02  farhi
+* Make these libs easier to externalize (lower dependencies) and add comment about how to make these independent for external linkage.
+*
+* Revision 1.11  2004/09/09 13:48:02  farhi
+* Code clean-up
+*
+* Revision 1.10  2004/09/03 13:46:50  farhi
+* Correct misprint in comment
+*
+* Revision 1.9  2003/05/20 15:12:33  farhi
+* malloc size for read table binary now needs less memory
+*
+* Revision 1.8  2003/02/11 12:28:46  farhi
+* Variouxs bug fixes after tests in the lib directory
+* mcstas_r  : disable output with --no-out.. flag. Fix 1D McStas output
+* read_table:corrected MC_SYS_DIR -> MCSTAS define
+* monitor_nd-lib: fix Log(signal) log(coord)
+* HOPG.trm: reduce 4000 points -> 400 which is enough and faster to resample
+* Progress_bar: precent -> percent parameter
+* CS: ----------------------------------------------------------------------
+*
+* Revision 1.8  2003/02/06 14:14:41  farhi
+* Corrected MC_SYS_DIR into MCSTAS definition of default lib location
+*
+* Revision 1.2 2002/12/19 12:48:07 ef
+* Added binary import. Fixed Rebin. Added Stat.
+*
+* Revision 1.1 2002/08/29 11:39:00 ef
+* Initial revision extracted from lib/optics/Monochromators...
 *******************************************************************************/
 
 #ifndef READ_TABLE_LIB_H
@@ -77,36 +192,16 @@
     mc_rt_hfile = fopen(mc_rt_File, "r");
     if(!mc_rt_hfile)
     {
-      char mc_rt_path[1024];
-      char mc_rt_dir[1024];
+      char mc_rt_path[256];
+      char mc_rt_dir[256];
 
-      if (!mc_rt_hfile) /* search in instrument location */
-      {
-        char *path_pos   = NULL;
-        /* extract path: searches for last file separator */
-        path_pos    = strrchr(mcinstrument_source, MC_PATHSEP_C);  /* last PATHSEP */
-        if (path_pos) {
-          long path_length = path_pos +1 - mcinstrument_source;  /* from start to path+sep */
-          if (path_length) {
-            strncpy(mc_rt_dir, mcinstrument_source, path_length);
-            sprintf(mc_rt_path, "%s%c%s", mc_rt_dir, MC_PATHSEP_C, mc_rt_File);
-            mc_rt_hfile = fopen(mc_rt_path, "r");
-          }
-        }
-      }
-      if (!mc_rt_hfile) /* search in HOME */
-      {
-        strcpy(mc_rt_dir, getenv("HOME") ? getenv("HOME") : ".");
-        sprintf(mc_rt_path, "%s%c%s", mc_rt_dir, MC_PATHSEP_C, mc_rt_File);
-        mc_rt_hfile = fopen(mc_rt_path, "r");
-      }
-      if (!mc_rt_hfile) /* search in MCSTAS data */
+      if (!mc_rt_hfile)
       {
         strcpy(mc_rt_dir, getenv("MCSTAS") ? getenv("MCSTAS") : MCSTAS);
         sprintf(mc_rt_path, "%s%c%s%c%s", mc_rt_dir, MC_PATHSEP_C, "data", MC_PATHSEP_C, mc_rt_File);
         mc_rt_hfile = fopen(mc_rt_path, "r");
       }
-      if (!mc_rt_hfile) /* search in MVCSTAS/contrib */
+      if (!mc_rt_hfile)
       {
         strcpy(mc_rt_dir, getenv("MCSTAS") ? getenv("MCSTAS") : MCSTAS);
         sprintf(mc_rt_path, "%s%c%s%c%s", mc_rt_dir, MC_PATHSEP_C, "contrib", MC_PATHSEP_C, mc_rt_File);
@@ -114,10 +209,9 @@
       }
       if(!mc_rt_hfile)
       {
-        fprintf(stderr, "Error: Could not open input file '%s' (Table_Read_Offset_Binary)\n", mc_rt_File);
+        fprintf(stderr, "Error: Could not open input file '%s' (Table_Read)\n", mc_rt_File);
         return (-1);
-      } else
-        printf("Opening input file '%s' (Table_Read)\n", mc_rt_path);
+      }
     }
     stat(mc_rt_File,&mc_rt_stfile); mc_rt_filesize = mc_rt_stfile.st_size;
     if (mc_rt_offset && *mc_rt_offset) fseek(mc_rt_hfile, *mc_rt_offset, SEEK_SET);
@@ -167,36 +261,16 @@
     mc_rt_hfile = fopen(mc_rt_File, "r");
     if(!mc_rt_hfile)
     {
-      char mc_rt_path[1024];
-      char mc_rt_dir[1024];
+      char mc_rt_path[256];
+      char mc_rt_dir[256];
 
-      if (!mc_rt_hfile) /* search in instrument location */
-      {
-        char *path_pos   = NULL;
-        /* extract path: searches for last file separator */
-        path_pos    = strrchr(mcinstrument_source, MC_PATHSEP_C);  /* last PATHSEP */
-        if (path_pos) {
-          long path_length = path_pos +1 - mcinstrument_source;  /* from start to path+sep */
-          if (path_length) {
-            strncpy(mc_rt_dir, mcinstrument_source, path_length);
-            sprintf(mc_rt_path, "%s%c%s", mc_rt_dir, MC_PATHSEP_C, mc_rt_File);
-            mc_rt_hfile = fopen(mc_rt_path, "r");
-          }
-        }
-      }
-      if (!mc_rt_hfile) /* search in HOME */
-      {
-        strcpy(mc_rt_dir, getenv("HOME") ? getenv("HOME") : ".");
-        sprintf(mc_rt_path, "%s%c%s", mc_rt_dir, MC_PATHSEP_C, mc_rt_File);
-        mc_rt_hfile = fopen(mc_rt_path, "r");
-      }
-      if (!mc_rt_hfile) /* search in MCSTAS data */
+      if (!mc_rt_hfile)
       {
         strcpy(mc_rt_dir, getenv("MCSTAS") ? getenv("MCSTAS") : MCSTAS);
         sprintf(mc_rt_path, "%s%c%s%c%s", mc_rt_dir, MC_PATHSEP_C, "data", MC_PATHSEP_C, mc_rt_File);
         mc_rt_hfile = fopen(mc_rt_path, "r");
       }
-      if (!mc_rt_hfile) /* search in MVCSTAS/contrib */
+      if (!mc_rt_hfile)
       {
         strcpy(mc_rt_dir, getenv("MCSTAS") ? getenv("MCSTAS") : MCSTAS);
         sprintf(mc_rt_path, "%s%c%s%c%s", mc_rt_dir, MC_PATHSEP_C, "contrib", MC_PATHSEP_C, mc_rt_File);
@@ -206,8 +280,7 @@
       {
         fprintf(stderr, "Error: Could not open input file '%s' (Table_Read_Offset_Binary)\n", mc_rt_File);
         return (-1);
-      } else
-        printf("Opening input file '%s' (Table_Read)\n", mc_rt_path);
+      }
     }
     stat(mc_rt_File,&mc_rt_stfile);
     mc_rt_filesize = mc_rt_stfile.st_size;
@@ -282,7 +355,7 @@
   { /* reads all/a data block from 'file' handle and returns a Table structure  */
     double *mc_rt_Data;
     char *mc_rt_Header;
-    long  mc_rt_malloc_size         = CHAR_BUF_LENGTH;
+    long  mc_rt_malloc_size         = 1024;
     long  mc_rt_malloc_size_h       = 4096;
     long  mc_rt_Rows = 0,   mc_rt_Columns = 0;
     long  mc_rt_count_in_array      = 0;
@@ -307,11 +380,11 @@
     mc_rt_Header[0] = '\0';
 
     do { /* while (!mc_rt_flag_End_row_loop) */
-      char  mc_rt_line[64*CHAR_BUF_LENGTH];
+      char  mc_rt_line[64*1024];
       long  mc_rt_back_pos=0;   /* ftell start of line */
 
       mc_rt_back_pos = ftell(mc_rt_hfile);
-      if (fgets(mc_rt_line, 64*CHAR_BUF_LENGTH, mc_rt_hfile) != NULL) { /* analyse line */
+      if (fgets(mc_rt_line, 64*1024, mc_rt_hfile) != NULL) { /* analyse line */
         int mc_rt_i=0;
         char  mc_rt_flag_Store_into_header=0;
         /* first skip blank and tabulation characters */
@@ -335,7 +408,7 @@
             mc_rt_InputTokens            = mc_rt_line;
 
             do { /* while (!mc_rt_flag_End_Line) */
-              mc_rt_lexeme      = (char *)strtok(mc_rt_InputTokens, " ,;\t\n");
+              mc_rt_lexeme      = (char *)strtok(mc_rt_InputTokens, " ,;\t\n\r");
               mc_rt_InputTokens = NULL;
               if ((mc_rt_lexeme != NULL) && (strlen(mc_rt_lexeme) != 0))
               { /* reading line: the token is not empty */
@@ -366,7 +439,7 @@
                     } else { /* store into data array */
                       if (mc_rt_count_in_array >= mc_rt_malloc_size)
                       { /* realloc data buffer if necessary */
-                        mc_rt_malloc_size = mc_rt_count_in_array+CHAR_BUF_LENGTH;
+                        mc_rt_malloc_size = mc_rt_count_in_array+1024;
                         mc_rt_Data     = (double*)realloc(mc_rt_Data, mc_rt_malloc_size*sizeof(double));
                         if (mc_rt_Data == NULL)
                         {
@@ -581,7 +654,7 @@
   double Table_Value(t_Table mc_rt_Table, double X, long j)
   {
     long   mc_rt_Index;
-    double mc_rt_X1=0, mc_rt_Y1=0, mc_rt_X2=0, mc_rt_Y2=0;
+    double mc_rt_X1, mc_rt_Y1, mc_rt_X2, mc_rt_Y2;
     double ret=0;
 
     if (X > mc_rt_Table.max_x) return Table_Index(mc_rt_Table,mc_rt_Table.rows-1  ,j);

@@ -132,7 +132,7 @@ sub get_sim_info {
 # results is an error message.
 #
 sub get_out_file_init {
-    my ($inname, $force, $mpi, $cflags, @ccopts) = @_;
+    my ($inname, $force, $mpi, $threads, @ccopts) = @_;
     return (undef, "mcrun: No simulation filename given") unless $inname;
     # Add a default extension of ".instr" if given name does not exist
     # as file.
@@ -165,7 +165,7 @@ sub get_out_file_init {
     my $v = { };
     $v->{'force'} = $force;
     $v->{'mpi'} = $mpi;
-    $v->{'cflags'} = $cflags;
+    $v->{'threads'} = $threads;
     $v->{'ccopts'} = join(" ",@ccopts);
     $v->{'file_type'} = $file_type;
     $v->{'dir'} = $dir;
@@ -214,7 +214,7 @@ sub get_out_file_next {
   my $out_age = $v->{'out_age'};
   my $stage = $v->{'stage'};
   my $mpi   = $v->{'mpi'};
-  my $cflags   = $v->{'cflags'};
+  my $threads   = $v->{'threads'};
   my $ccopts = $v->{'ccopts'};
   my $cccmd  = $v->{'cc_cmd'};
   if($stage eq PRE_MCSTAS) {
@@ -250,7 +250,7 @@ sub get_out_file_next {
 	$v->{'stage'} = POST_MCSTAS;
       return (RUN_CMD, $cmd);
       } else {
-      my $cmd = [$MCSTAS::mcstas_config{'MCCODE'}, @inc, "-t", "-o", $c_name, $sim_def];
+      my $cmd = ["mcstas", @inc, "-t", "-o", $c_name, $sim_def];
       &$printer(join(" ", @$cmd));
       $v->{'stage'} = POST_MCSTAS;
       return (RUN_CMD, $cmd);
@@ -271,9 +271,11 @@ sub get_out_file_next {
     # Compile C source if newer than existing out file.
     # ToDo: splitting CFLAGS should handle shell quoting as well ...
     my $cc     = $MCSTAS::mcstas_config{CC};
-    my $mcstas_cflags = "";
-    if ($cflags) { $mcstas_cflags = $MCSTAS::mcstas_config{CFLAGS}; }
+    my $cflags = $MCSTAS::mcstas_config{CFLAGS};
     my $libs = "-lm ";
+    if ($v->{'threads'} && $MCSTAS::mcstas_config{THREADS} ne "") {
+      $libs .= $MCSTAS::mcstas_config{THREADS};
+    }
     if ($v->{'mpi'} && $MCSTAS::mcstas_config{MPICC} ne "no") {
       $libs .= " -DUSE_MPI ";
       $cc      = $MCSTAS::mcstas_config{'MPICC'};
@@ -287,7 +289,7 @@ sub get_out_file_next {
       $c_name="\"$c_name\"";
     }
     if ($ccopts) { $libs .= $ccopts; }
-    my $cmd = [$cc, split(' ', $mcstas_cflags), "-o",
+    my $cmd = [$cc, split(' ', $cflags), "-o",
                $out_name, $c_name, split(' ', $libs)];
     $v->{'cc_cmd'} = join(" ", @$cmd);           
     if(($file_type eq MCSTAS || $file_type eq C) &&
@@ -318,9 +320,9 @@ sub get_out_file_next {
 # The optional $force option, if true, forces unconditional recompilation.
 #
 sub get_out_file {
-    my ($inname, $force, $mpi, $cflags, @ccopts) = @_;
+    my ($inname, $force, $mpi, $threads, @ccopts) = @_;
     my ($v, $msg, $status, $value);
-    ($v, $msg) = get_out_file_init($inname, $force, $mpi, $cflags, @ccopts);
+    ($v, $msg) = get_out_file_init($inname, $force, $mpi, $threads, @ccopts);
     unless($v) {
         print STDERR "$msg\n";
         return undef;
@@ -347,168 +349,217 @@ sub get_out_file {
 
 # McStas selftest procedure: copy LIB/examples and execute
 sub do_test {
-  my ($printer,$force, $plotter, $exec_test, $mpi, $ncount, $sim_def) = @_;
+  my ($printer,$force, $plotter, $exec_test, $mpi, $ncount) = @_;
+  my $j;
   my $pwd=getcwd;
 
-  &$printer( "# McStas self-test (mcrun --test)");
+  &$printer( "# McStas self-test (mcrun --test='$exec_test')");
   if ($mpi) {
-      &$printer("# MPI enabled, spawning $mpi compute nodes");
+      &$printer("# MPI enabled, spawning $mpi computenodes");
   }
   &$printer(`mcstas --version`);
-  # create selftest direcory
-  require File::Temp; # for tempdir
-  $tmpdir = File::Temp::tempdir( 'selftest_XXXX' ) || return "mcrun: Couldn't create 'selftest': $@\n";
-  &$printer("# Installing '$tmpdir' directory in $pwd");
-  # copy all instruments
-  my @paths=();
-  if ($sim_def && $sim_def !~ m'\.[^/]*$') { $sim_def .= ".instr"; }
-  if ($sim_def && -e $sim_def) {    # local instrument to test
-    &$printer("# Using instrument $sim_def");
-    push @paths, "$sim_def";
-    copy("$sim_def","$tmpdir/$sim_def");
-  } else {
-    &$printer("# Copying instruments from $MCSTAS::sys_dir/examples/");
-    if (opendir(DIR,"$MCSTAS::sys_dir/examples/")) {
-      my @instruments = readdir(DIR);
-      closedir(DIR);
-      next unless @instruments;
-      my @paths_loc = ();
-      @paths_loc = map("$MCSTAS::sys_dir/examples/$_", grep(/\.(instr)$/, @instruments));
-      for ($j=0 ; $j<@paths_loc; $j++) {
-        my ($base, $dirname, $ext) = fileparse($paths_loc[$j],".instr");
-        next if ($sim_def && $sim_def !~ $base);
-        if (! copy("$paths_loc[$j]","$tmpdir/$base$ext")) {
-          return "Could not copy $paths_loc[$j] to '$tmpdir' directory: $!\n";
-        } else {
-          push @paths, $paths_loc[$j];
-        }
-      }
+  &$printer("# Installing 'selftest' directory in $pwd");
+  if (-d "selftest") # directory already exists
+  { if ($force) { eval { rmtree('selftest',0,1); } }
+    else {
+      return "mcrun: Directory 'selftest' already exists.\n       Use '-c' or '--force' option to overwrite.\n";
     }
   }
-  if (!@paths) { return "mcrun: no test instruments found. Aborting.\n"; }
+  # create selftest direcory
+  eval { mkpath('selftest') };
+  if ($@) {
+    return "mcrun: Couldn't create 'selftest': $@\n";
+  }
+  # copy all instruments
+  &$printer("# Copying instruments from $MCSTAS::sys_dir/examples/");
+  if (opendir(DIR,"$MCSTAS::sys_dir/examples/")) {
+    my @instruments = readdir(DIR);
+    closedir(DIR);
+    next unless @instruments;
+    my @paths = map("$MCSTAS::sys_dir/examples/$_", grep(/\.(instr)$/, @instruments));
+    for ($j=0 ; $j<@paths; $j++) {
+      my ($base, $dirname, $suffix) = fileparse($paths[$j],".instr");
+      if (! copy("$paths[$j]","./selftest/$base$suffix")) {
+        return "Could not copy $paths[$j] to 'selftest' directory: $!\n";
+      }
+    }
+  } else { return "mcrun: no test instruments found. Aborting.\n"; }
   # go into the selftest directory
-  chdir($tmpdir) or return "mcrun: Can not go into $tmpdir: $!\n";
-  
+  chdir("selftest") or return "mcrun: Can get into selftest: $!\n";
   # Initialize test
+  my $n_single=int($ncount/10);
+  my $n_scan=int($ncount/100);
   my $now = localtime;
   my $start_sec = time();
-  my $n_single=int($ncount);
-  &$printer("# Counts:        $n_single");
+  &$printer("# Counts: single=$n_single, scans=$n_scan");
   &$printer("# Output format: $plotter");
-  &$printer("# Start Date:    $now");
-  my $suffix=$MCSTAS::mcstas_config{'SUFFIX'};
-  my $prefix=$MCSTAS::mcstas_config{'PREFIX'};
+  &$printer("# Start Date: $now");
+  my @test_names;
+  my @test_commands;
+  my @test_monitor_names;
+  my @test_monitor_values;
+  my $suffix='';
+  $suffix=$MCSTAS::mcstas_config{'SUFFIX'};
+  $prefix=$MCSTAS::mcstas_config{'PREFIX'};
   $ENV{'MCSTAS_FORMAT'} = $plotter;
-  if ($mpi) { $mpi=" --mpi=$mpi"; }
+  if ($mpi) {
+      $mpi="--mpi=$mpi";
+  }
 
+  # compatible test definition
+  if ($exec_test =~ /compatible/i) {
+  @test_names   = ("ISIS prisma2: in focusing mode",
+      "ISIS prisma2: in non-focusing mode",
+      "vanadium_example: vanadium scattering anisotropy",
+      "Brookhaven H8: Thermal TAS with vanadium sample",
+      "Risoe TAS1: monochromator rocking curve (no collimator)",
+      "Risoe TAS1: monochromator rocking curve (with 30 minutes collimator)",
+      "Risoe TAS1: collimator C1 tilt",
+      "Risoe TAS1: monochromator rotation (PHM aka A1) with C1 tilted by OMC1=-2 deg",
+      "Risoe TAS1: monochromator rotation (PHM aka A1) with C1 tilted by OMC1=-5 deg",
+      "Risoe TAS1: monochromator rotation (PHM aka A1) with C1 tilted by OMC1=-6 deg",
+      "Risoe TAS1: monochromator rotation (PHM aka A1) with C1 tilted by OMC1=-10 deg",
+      "Risoe TAS1: sample take-off angle (TT aka A4) scan with 3 collimators. Slit sample",
+      "Risoe TAS1: analyzer arm alignment (TTA aka A6). No detector collimation C3. Vanadium sample",
+      "Risoe TAS1: analyzer arm alignment (TTA aka A6). 30 minutes detector collimation C3. Vanadium sample",
+      "Risoe TAS1: sample two-theta (TT aka A4). positive side . Powder sample",
+      "Risoe TAS1: sample two-theta (TT aka A4). negative side . Powder sample",
+      "Risoe TAS1: Triple axis mode. Analyzer rocking curve (OMA aka A5). Vanadium sample",
+      "Risoe TAS1: Triple axis mode. Sample take-off (TT aka A4). Powder sample",);
+  @test_commands= ("mcrun$suffix $mpi  --dir=prisma2a prisma2.instr --ncount=$n_single TT=-30 PHA=22 PHA1=-3 PHA2=-2 PHA3=-1 PHA4=0 PHA5=1 PHA6=2 PHA7=3 TTA=44",
+      "mcrun$suffix $mpi  --dir=prisma2b prisma2.instr --ncount=$n_single TT=-30 PHA=22 PHA1=3 PHA2=2 PHA3=1 PHA4=0 PHA5=-1 PHA6=-2 PHA7=-3 TTA=44",
+      "mcrun$suffix $mpi  --dir=V_test vanadium_example.instr --ncount=$n_single ROT=0",
+      "mcrun$suffix $mpi  -n $n_single --dir=h8_test  h8_test.instr Lambda=2.359",
+      "mcrun$suffix $mpi  --numpoints=41 -n $n_scan --dir=linup_1_45 linup-1.instr PHM=-39,-35 TTM=-74 C1=0",
+      "mcrun$suffix $mpi  --numpoints=41 -n $n_scan --dir=linup_2_45 linup-1.instr PHM=-39,-35 TTM=-74 C1=30",
+      "mcrun$suffix $mpi  --numpoints=41 -n $n_scan --dir=linup_3_45 linup-2.instr PHM=-37.077 TTM=-74 C1=30 OMC1=-50,50",
+      "mcrun$suffix $mpi  --numpoints=41 -n $n_scan --dir=linup_4_45 linup-2.instr PHM=-39,-35 TTM=-74 C1=30 OMC1=-1.81715",
+      "mcrun$suffix $mpi  --numpoints=31 -n $n_scan --dir=linup_5_m5 linup-2.instr PHM=-38.5,-35.5 TTM=-74 C1=30 OMC1=-5",
+      "mcrun$suffix $mpi  --numpoints=31 -n $n_scan --dir=linup_5_m6 linup-2.instr PHM=-38.5,-35.5 TTM=-74 C1=30 OMC1=-6",
+      "mcrun$suffix $mpi  --numpoints=31 -n $n_scan --dir=linup_5_m10 linup-2.instr PHM=-38.5,-35.5 TTM=-74 C1=30 OMC1=-10",
+      "mcrun$suffix $mpi  --numpoints=41 -n $n_scan --dir=linup_6_0 linup-3.instr PHM=-37.077 TTM=-74 TT=-1.5,1.5 C1=30 OMC1=-5.5 C2=0 C3=0",
+      "mcrun$suffix $mpi  --numpoints=41 -n $n_scan --dir=linup_7 linup-4.instr PHM=-37.077 TTM=-74 TT=33.52 TTA=-3,3 C1=30 OMC1=-5.5 C2=28 C3=0",
+      "mcrun$suffix $mpi  --numpoints=41 -n $n_scan --dir=linup_8 linup-4.instr PHM=-37.077 TTM=-74 TT=33.52 TTA=-3,3 C1=30 OMC1=-5.5 C2=28 C3=67",
+      "mcrun$suffix $mpi  --numpoints=41 -n $n_scan --dir=linup_9 linup-5.instr PHM=-37.077 TTM=-74 TT=32,35 TTA=0 C1=30 OMC1=-5.5 C2=28 C3=67",
+      "mcrun$suffix $mpi  --numpoints=41 -n $n_scan --dir=linup_10 linup-5.instr PHM=-37.077 TTM=-74 TT=-32,-35 TTA=0 C1=30 OMC1=-5.5 C2=28 C3=67",
+      "mcrun$suffix $mpi  --numpoints=21 -n $n_scan --dir=linup_11 linup-6.instr PHM=-37.077 TTM=-74 TT=33.57 OMA=-16.44,-18.44 TTA=-34.883 C1=30 OMC1=-5.5 C2=28 C3=67",
+      "mcrun$suffix $mpi  --numpoints=21 -n $n_scan --dir=linup_13 linup-7.instr PHM=-37.077 TTM=-74 TT=32.5,34.5 OMA=-17.45 TTA=-34.9 C1=30 OMC1=-5.5 C2=28 C3=67");
+  @test_monitor_names =("mon9_I","mon9_I","PSD_4pi_I","D7_SC3_In_I","","","","","","","","","","","","","","");
+  @test_monitor_values=(6.4e-13,4.5e-13,2.1e-06,3.11e-11,0,0,0,0,0,0,0,0,0,0,0,0,0,0);
+  } # end of compatible test definition
   # now execute each simulation and look for errors
   my $error_flag    = 0;
   my $accuracy_flag = 0;
-  my $j;
-  my $index=0;
-  my $test_abstract="Test Abstract for $tmpdir\n";
-  for ($j=0 ; $j<@paths ; $j++) {  # loop on instruments
-    my $data=component_information($paths[$j]);     # read instrument header and extract info
-    my @val_par=@{$data->{'validation_par'}};
-    my @val_det=@{$data->{'validation_det'}};
-    my @val_val=@{$data->{'validation_val'}};
-    my ($base, $dirname, $ext) = fileparse($paths[$j],".instr");
-    my $k;
-    if (!@val_par) { 
-    	&$printer("Instrument without test: $base"); 
-    	my $this_cmd = "mcrun -c -n0 --no-cflags $base";
-    	&$printer("Executing: $this_cmd");
-    	my $res = qx/$this_cmd/;
-    	if ($child_error_code) {
-    	  &$printer("[FAILED] $base: ($child_error_code): $child_error_text");
-        $test_abstract .= "[FAILED] $base". "_$index (compilation/execution)\n";
-        $error_flag++; 
-      } else {
-    		$test_abstract .= "[notest] $base (no test procedure)\n";
-    	}
-    }
-    for ($k=0; $k<@val_par; $k++) { # loop on tests
-      if ($k == 0) { &$printer("INSTRUMENT $base:\n  $data->{'identification'}{'short'}"); }
-      my $this_cmd =$val_par[$k];
-      $index++;
-      # check command
-      if ($this_cmd !~ m/$base/) { $this_cmd = "$base $this_cmd"; } # only parameters ?
-      if ($this_cmd !~ m/mcrun/ && $this_cmd !~ m/mcplot/ && $this_cmd !~ m/mcdisplay/) 
-                                 { $this_cmd = "mcrun $this_cmd"; } # omitted mcrun ?
-      if ($this_cmd !~ m/mpi/ && $mpi) { $this_cmd .= $mpi; }              # add mpi
-      if ($this_cmd !~ m/-n/ && $this_cmd !~ m/--ncount/) { $this_cmd.= " -n $n_single"; }
-      if ($this_cmd !~ m/--format/) { $this_cmd.= " --format=$plotter"; }
-      if ($this_cmd !~ m/-d/ && $this_cmd !~ m/--dir/) { $this_cmd.= " -d $base" . "_$index"; }
-      
-      if ($this_cmd =~ m/mcrun/) { $this_cmd .= " --no-cflags"; }
+  my $plot_flag     = 0;
+  my $total_diff    = 0;
+  for ($j=0 ; $j<@test_commands ; $j++) {
+    my $this_cmd =$test_commands[$j];
+    my $this_name=$test_names[$j];
+    &$printer("Executing: $this_cmd");
+    my $res = qx/$this_cmd/;
+    my $child_error_text = $!;
+    my $child_error_code = $?;
+    if ($child_error_code) {
+      &$printer("[FAILED] $this_name: ($child_error_code): $child_error_text");
+      $error_flag = 1;
+      last;
+    } else {
+      my $diff = 0;
+      my $sim_I= 0;
+      my $line;
+      #Analyse test output if reference value is available
+      if ($test_monitor_values[$j] ne 0) { # there is a reference value...
+        # split the output in lines
+        for $line (split "\n", $res) {
+        # search reference monitor in these lines
+          if($line =~ m/Detector: ([^ =]+_I) *= *([^ =]+) ([^ =]+_ERR) *= *([^ =]+) ([^ =]+_N) *= *([^ =]+) *(?:"[^"]+" *)?$/) {
+            my $sim_I_name = $1;
+            if ($test_monitor_names[$j] eq $sim_I_name) {
+              $sim_I = $2;
+              $diff = abs($sim_I/$test_monitor_values[$j] -1);
+              $total_diff = $total_diff+$diff;
+            }
+          }
+        } # end for
+        if ($diff) {
+          if ($diff > 0.2) {
+            $accuracy_flag = 1;
+            $diff = $diff*100;
+            &$printer("[FAILED] $this_name ($test_monitor_names[$j] = $sim_I, should be $test_monitor_values[$j])");
+          } else { &$printer("[OK] $this_name ($test_monitor_names[$j] accuracy within $diff %)"); }
+        }
+      } # end if ($test_monitor_values[$j] ne 0)
+      if ($diff eq 0) { &$printer("[OK] $this_name (accuracy not checked)"); }
+    } # end else
+  } # end for
+  my $elapsed_sec = time() - $start_sec;
+
+  # now test graphics...
+  if ($exec_test =~ /graphics/i) {
+    @test_names   = ("Plot of Scan of parameters with Risoe TAS1 monochromator rocking curve (no collimator)",
+      "Plot of Single simulation with Brookhaven H8 Termal TAS with vanadium sample");
+    @test_commands= ("mcplot$suffix -psc linup_1_45",
+      "mcplot$suffix -psc h8_test");
+    @test_monitor_names =("linup_1_45","h8_test");
+    for ($j=0 ; $j<@test_commands ; $j++) {
+      my $this_cmd =$test_commands[$j];
+      my $this_name=$test_names[$j];
       &$printer("Executing: $this_cmd");
       my $res = qx/$this_cmd/;
       my $child_error_text = $!;
       my $child_error_code = $?;
       if ($child_error_code) {
-        &$printer("[FAILED] $base: ($child_error_code): $child_error_text");
-        $test_abstract .= "[FAILED] $base". "_$index (compilation/execution)\n";
-        $error_flag++; 
-        last; # go to next instrument (exit for $k)
-      } else {
-        #Analyse test output if reference value is available
-        if ($val_val[$k] ne 0) { # there is a reference value...
-          # split the output in lines
-          my $line;
-          my $sim_I= 0;
-          my $sim_E= 0;
-          for $line (split "\n", $res) {
-            # search reference monitor in these lines
-            if($line =~ m/Detector: ([^ =]+_I) *= *([^ =]+) ([^ =]+_ERR) *= *([^ =]+) ([^ =]+_N) *= *([^ =]+) *(?:"[^"]+" *)?$/) {
-              my $sim_I_name = $1;
-              if ($val_det[$k] eq $sim_I_name) {
-                $sim_I = $2;
-                $sim_E = abs($4);
-              }
-            }
-          } # end for $line
-          if ($sim_E) { # found monitor for this test, either below 1 % or within Error bar
-            my $diff = int(abs($sim_I/$val_val[$k]-1)*100+0.99);
-            if (abs($sim_I/$sim_E) < 2) { # error is higher than half signal: stats too low
-              &$printer("[OK] $base: $val_det[$k] = $sim_I +/- $sim_E (statistics too low for testing, increase ncount)"); 
-              $test_abstract .= "[OK]     $base". "_$index (statistics too low for testing, increase ncount)\n";
-            } elsif (abs($val_val[$k]-$sim_I) < abs($val_val[$k]*0.05) || abs($val_val[$k]-$sim_I) < 3*$sim_E)  { 
-              &$printer("[OK] $base: $val_det[$k] = $sim_I +/- $sim_E, equals $val_val[$k] within $diff \%"); 
-              $test_abstract .= "[OK]     $base". "_$index (accuracy, $diff \%)\n";
-            } elsif (abs($val_val[$k]-$sim_I) < abs($val_val[$k]*0.2))  { 
-              &$printer("[OK] $base: $val_det[$k] = $sim_I +/- $sim_E, equals $val_val[$k] within $diff \%"); 
-              $test_abstract .= "[OK]     $base". "_$index (accuracy, fair $diff \%)\n";
+        &$printer("[Warning] $this_name: ($child_error_code): $child_error_text");
+      }
+      my $this_flag = 1;
+      if (opendir(DIR, "$test_monitor_names[$j]")) {
+        my @files = readdir(DIR);
+        closedir(DIR);
+        my $k;
+        my $filename;
+        my @paths = map("$test_monitor_names[$j]/$_", grep(/\.(gif|png|ps|eps|jpg)$/i, @files));
+        for ($k=0 ; $k<@paths; $k++) {
+          $filename = $paths[$k];
+          $this_flag = 1;
+          if (-f "$filename") {
+            my $sb = stat($filename);
+            if ($sb->size) {
+              &$printer("[OK] $this_name ($filename)");
+              $this_flag = 0;
             } else {
-              $accuracy_flag++;
-              &$printer("[FAILED] $base: $val_det[$k] = $sim_I +/- $sim_E, should be $val_val[$k] ");
-              $test_abstract .= "[FAILED] $base". "_$index (accuracy off by $diff \%)\n";
+              &$printer("[Warning] $this_name ($filename) exists but is empty");
+              $this_flag = 0;
             }
-          } else {
-            &$printer("[???] $base: $val_det[$k] = $sim_I (may have failed, reference not found)"); 
-            $test_abstract .= "[??????] $base". "_$index (reference not found)\n";
-          }
-        }  else {   # no reference value
-          &$printer("[OK] $base: $val_det[$k] = $sim_I (accuracy not checked)"); 
-          $test_abstract .= "[OK]     $base". "_$index (accuracy not checked)\n";
-        }
-      } # end else $child_error_code (execution)
-    } # end for $k (examples in instrument)
-  } # end for $j (instruments)
-  my $elapsed_sec = time() - $start_sec;
-  $test_abstract .= "\n";
+          } # end if (-f "$filename")
+        } # end for
+      } # end opendir
+      if ($this_flag) { &$printer("[FAILED] $this_name"); $plot_flag=1; }
+    } # end for
+  } # end of graphics test
+
   $now = localtime();
-  &$printer($test_abstract);
   if ($error_flag) {
-    &$printer("# Execution check:    FAILED. $error_flag instrument(s) did not compile/execute.");
-    &$printer("# >> Check instruments and McStas installation.");
+    &$printer("# Installation check: FAILED. McStas has not been properly installed.");
+    &$printer("# >> Check that you have a C compiler, perl, and perl-Tk installed.");
   } else {
-    &$printer("# Execution check:    OK.     Computing time: $elapsed_sec [sec] for $index tests.");
-    if ($accuracy_flag > 2) {
-      &$printer("# Accuracy check:     FAILED. $accuracy_flag test(s) with inaccurate results.");
-    } elsif ($accuracy_flag==0) {
-      &$printer("# Accuracy check:     OK.");
+    &$printer("# Installation check: OK.     Computing time: $elapsed_sec [sec].");
+    if ($accuracy_flag) {
+      &$printer("# Accuracy     check: FAILED. Results are not reliable.");
+      &$printer("# >> This McStas installation does NOT produce accurate results.");
     } else {
-    	&$printer("# Accuracy check:     FAIR. $accuracy_flag test(s) with inaccurate results.");
+      &$printer("# Accuracy     check: OK.");
+    }
+    if ($exec_test =~ /graphics/i) {
+      if ($plot_flag) {
+        &$printer("# Plotter      check: FAILED.");
+        &$printer("# >> The $plotter plotter may NOT be working properly.");
+        &$printer("# >> Check that you have Scilab/Matlab/PGPLOT installed");
+        &$printer("# >>    and that your Display is available.");
+      } else {
+        &$printer("# Plotter      check: OK.     Using Plotter $plotter.");
+      }
+    } else {
+      &$printer("# Plotter NOT  checked ($plotter).");
     }
   }
 
@@ -550,9 +601,6 @@ sub parse_header {
     $d->{'parhelp'} = { };
     $d->{'links'} = [ ];
     $d->{'site'}="";
-    my @val_det=();
-    my @val_val=();
-    my @val_par=();
     while(<$f>) {
         if(/\%INSTRUMENT_SITE:(.*)$/i) {
             $d->{'site'}=$1;
@@ -566,14 +614,6 @@ sub parse_header {
         } elsif(/\%L[a-z]*/i) {
             $where = "links";
             push @{$d->{'links'}}, "";
-        } elsif(/\%EXAMPLE: (.*) Detector: *([^ =]+_I|[^ =]+) *= *([^ =]+)/i) {
-                  push @val_det, "$2";
-                  push @val_val,  $3;
-                  push @val_par, "$1";       
-        } elsif(/\%EXAMPLE: (.*)/i) {
-                  push @val_det, "";
-                  push @val_val, 0;
-                  push @val_par, "$1";    
         } elsif(/\%E[a-z]*/i) {
             last;
         } else {
@@ -628,9 +668,6 @@ sub parse_header {
             }
         }
     }
-    $d->{'validation_det'} = \@val_det;
-    $d->{'validation_val'} = \@val_val;
-    $d->{'validation_par'} = \@val_par;
     # Now search for unit specifications in the parameter information.
     # This is a bit tricky due to various formats used in the old
     # components. The preferred format is a specification of the unit

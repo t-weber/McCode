@@ -12,7 +12,7 @@
 * Date: Aug 28, 2002
 * Origin: ILL
 * Release: McStas 1.6
-* Version: $Revision: 1.19 $
+* Version: $Revision: 1.17 $
 *
 * This file is to be imported by the monitor_nd related components
 * It handles some shared functions.
@@ -20,11 +20,58 @@
 * Usage: within SHARE
 * %include "monitor_nd-lib"
 *
+* $Id: monitor_nd-lib.h,v 1.17 2008-04-01 09:15:04 farhi Exp $
+*
+* $Log: not supported by cvs2svn $
+* Revision 1.16  2006/07/21 14:09:07  farhi
+* Fix wrong structure member
+*
+* Revision 1.15  2006/07/21 09:03:23  farhi
+* Added in options'per steradian' flux estimate, and possibility to glue the
+* monitor to the shape of the 'previous' component (unactivate propagation), so
+* that we can mnonitor what's going on at the output surface of the previous comp.
+*
+* Revision 1.14  2005/08/24 13:14:40  lieutenant
+* new option 'exclusive'
+*
+* Revision 1.13  2005/07/25 14:55:08  farhi
+* DOC update:
+* checked all parameter [unit] + text to be OK
+* set all versions to CVS Revision
+*
+* Revision 1.12  2005/07/04 08:20:16  farhi
+* added support for radial distributions vxy kxy and xy=radius
+*
+* Revision 1.11  2005/02/22 16:11:03  farhi
+* Now saving absolute position of monitors as "position" field in header
+* Useful for plotting e.g. flux vs distance
+*
+* Revision 1.10  2005/01/18 10:35:56  farhi
+* Intall new MACROs for easy User Variable usage in Monitor_nD
+* MONND_DECLARE(comp)
+* MONND_USER_TITLE(comp, num, title)
+* MONND_USER_VALUE(comp, num, value)
+* comp is the name of a Monitor_nD component; num is 1 or 2 for UserVariable
+*
+* Revision 1.9  2004/11/30 16:11:37  farhi
+* defined some macros for an easier User variable handling. Should be updated in the header and Comp doc
+*
+* Revision 1.8  2003/02/11 12:28:46  farhi
+* Variouxs bug fixes after tests in the lib directory
+* mcstas_r  : disable output with --no-out.. flag. Fix 1D McStas output
+* read_table:corrected MC_SYS_DIR -> MCSTAS define
+* monitor_nd-lib: fix Log(signal) log(coord)
+* HOPG.trm: reduce 4000 points -> 400 which is enough and faster to resample
+* Progress_bar: precent -> percent parameter
+* CS: ----------------------------------------------------------------------
+*
+* Revision 1.1 2002/08/28 11:39:00 ef
+* Initial revision extracted from lib/monitors/Monitor_nD.comp
 *******************************************************************************/
 
 #ifndef MONITOR_ND_LIB_H
 
-#define MONITOR_ND_LIB_H "$Revision: 1.19 $"
+#define MONITOR_ND_LIB_H "1.1.1"
 #define MONnD_COORD_NMAX  30  /* max number of variables to record */
 
   typedef struct MonitornD_Defines
@@ -69,6 +116,7 @@
     char COORD_FIL   ; /* next token is a filename */
     char COORD_EVNT  ; /* next token is a buffer size value */
     char COORD_3HE   ; /* next token is a 3He pressure value */
+    char COORD_INTERM; /* next token is an intermediate save value (percent) */
     char COORD_LOG   ; /* next variable will be in log scale */
     char COORD_ABS   ; /* next variable will be in abs scale */
     char COORD_SIGNAL; /* next variable will be the signal var */
@@ -133,7 +181,9 @@
     double UserVariable1;
     double UserVariable2;
     double UserVariable3;
-    char   option[CHAR_BUF_LENGTH];
+    double Intermediate;
+    double IntermediateCnts;
+    char   option[1024];
 
     double Nsum;
     double psum, p2sum;
@@ -155,7 +205,7 @@
 
 void Monitor_nD_Init(MonitornD_Defines_type *, MonitornD_Variables_type *, MCNUM, MCNUM, MCNUM, MCNUM, MCNUM, MCNUM, MCNUM, MCNUM, MCNUM);
 double Monitor_nD_Trace(MonitornD_Defines_type *, MonitornD_Variables_type *);
-MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *, MonitornD_Variables_type *);
+void Monitor_nD_Save(MonitornD_Defines_type *, MonitornD_Variables_type *);
 void Monitor_nD_Finally(MonitornD_Defines_type *, MonitornD_Variables_type *);
 void Monitor_nD_McDisplay(MonitornD_Defines_type *,
  MonitornD_Variables_type *);

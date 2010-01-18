@@ -1,18 +1,8 @@
 #!/bin/sh
 
 cd `dirname $0`
-
-# Determine if this is Snow Leopard (10.6)
-SL=`sw_vers | grep 10.6 | wc -l`
-
-if [ $SL = 1 ] ; then
-    export PERL=/usr/bin/perl5.8.9
-else
-    export PERL=/usr/bin/perl
-fi
-
 export BROWSER=/usr/bin/open
-./configure PERL=$PERL
+./configure
 make pgplot
 make
 echo

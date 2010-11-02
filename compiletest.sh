@@ -32,11 +32,9 @@ else
 fi
 
 EXAMPLES="$MCSTAS/examples"
-export EXAMPLES
-EXECDIR=`mktemp -d -t McRun_XXXX`
+export EXMPLES
+EXECDIR=`mktemp -d -t McRun`
 export EXECDIR
-MCSTAS_CFLAGS=
-export MCSTAS_CFLAGS
 
 echo "Example folder used is $EXAMPLES - compiling in $EXECDIR"
 

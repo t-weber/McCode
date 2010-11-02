@@ -325,7 +325,7 @@ sub simulation_dialog {
       -textvariable => \$formatchoice_val,
       -options      => $opts, -fg => 'blue'
     )->pack(-side => 'left');
-    $b->attach($formatchoice, -balloonmsg => "Select format here or\nfrom File/Preferences menu item");
+    $b->attach($formatchoice, -balloonmsg => "Select format here or\nfrom Simulation/Configuration menu item");
 
     # handle clustering methods
     my $line = $opt_frame->Frame;
@@ -443,12 +443,13 @@ Optimize Mode: signal 3 to maximize. Component MUST be a monitor");
 
       $si{'cluster'} = do {
         if    ($choicecluster_val =~ /^None/)   { 0 }
+        elsif ($choicecluster_val =~ /^Threads/){ 1 } # need recompile
         elsif ($choicecluster_val =~ /^MPI/)    { 2 } # need recompile
         elsif ($choicecluster_val =~ /^SSH/)    { 3 }
       };
 
       if (($si{'cluster'} == 1 || $si{'cluster'} == 2) && $choicecluster_orig ne $choicecluster_val) {
-        # if changing to MPI clustering, require re-compilation
+        # if changing to MPI or threads clustering, require re-compilation
         $si{'Forcecompile'} = 1;
       }
       if ($formatchoice_val ne $formatchoice_orig && $formatchoice_val =~ /NeXus|HDF/) {
@@ -458,21 +459,6 @@ Optimize Mode: signal 3 to maximize. Component MUST be a monitor");
 
       if ($choiceexec_val =~ /\(bg\)/) { $si{'Detach'} = 1; } 
       else { $si{'Detach'} = 0; }
-      
-      # add quotes to string instr parameters if needed
-      if ($quote) {
-        for $p (@parms) {
-          if ($ii->{'Parameter-types'}{$p} eq "string" &&
-            $si{'Params'}{$p} !~ /\".*\"/ &&
-            $si{'Params'}{$p} !~ /\'.*\'/) {
-              # Firstly, remove existing quotes  :) 
-                  $si{'Params'}{$p} =~ s!\"!!g;
-                  $si{'Params'}{$p} =~ s!\'!!g;
-                  # Next, add quotes...
-                  $si{'Params'}{$p} = "\"$si{'Params'}{$p}\"";
-            }
-        }
-      }
     }
 
     return ($res, \%si);
@@ -522,13 +508,12 @@ sub plot_dialog {
     # Platform checks. Assumption: Either unix type os / Win32.
     my $prefix          = $MCSTAS::mcstas_config{'PREFIX'};
     my $suffix          = $MCSTAS::mcstas_config{'SUFFIX'};
-    my $plotcmd         = $MCSTAS::mcstas_config{'PLOTCMD'};
 
     my @plot_cmd = ();
     if ($Config{'osname'} ne 'MSWin32') { # change spaces into \spaces
       $sim_file_name =~ s! !\ !g;
     }
-    push @plot_cmd, "$plotcmd$suffix";
+    push @plot_cmd, "mcplot$suffix";
     push @plot_cmd, $sim_file_name;
     my $cmd=join(' ',@plot_cmd);
     spawn_external($w, $cmd);
@@ -541,7 +526,7 @@ sub preferences_dialog {
     # Choice of internal editor
     # PW 20040527
     my ($win) = @_;
-    my $dlg = $win->DialogBox(-title => "McStas: Preferences",
+    my $dlg = $win->DialogBox(-title => "McStas: Configuration options",
                               -buttons => ["OK"]);
     $b = $dlg->Balloon(-state => 'balloon');
     my $lf = $dlg->Frame(-borderwidth => 2, -relief => 'ridge');
@@ -614,7 +599,7 @@ sub preferences_dialog {
     
     $editor = $MCSTAS::mcstas_config{'EDITOR'};
     my $editorchoice_val;
-    if ($editor == 0) { $editorchoice_val="Simple built-in editor"; }
+    if ($editor == 0) { $editorchoice_val="Simple built-in editor (McStas CVS-080208)"; }
     elsif ($editor == 1) { $editorchoice_val='Advanced built-in editor';}
     elsif ($editor == 2) { $editorchoice_val="External editor ($MCSTAS::mcstas_config{'EXTERNAL_EDITOR'})";}
     my $editorchoice = $lf->Label(-text => "Editor options:", -anchor => 'w',-fg=>'blue')->pack(-fill => 'x');
@@ -684,6 +669,7 @@ sub preferences_dialog {
 
     $MCSTAS::mcstas_config{'CLUSTER'} = do {
       if     ($choicecluster_val =~ /^None/)   { 0 }
+      elsif ($choicecluster_val =~ /^Threads/){ 1 }
       elsif ($choicecluster_val =~ /^MPI/)    { 2 }
       elsif ($choicecluster_val =~ /^SSH/)  { 3 }
     };
@@ -818,10 +804,10 @@ sub comp_instance_dialog {
     my $selected;
     my $ok_cmd = sub { $selected = 'OK' };
     my $cancel_cmd = sub { $selected = 'CANCEL' };
-    my $okbut = $bot_frame->Button(-text => "Ok", -command => $ok_cmd, -fg=>'GREEN');
+    my $okbut = $bot_frame->Button(-text => "Ok", -command => $ok_cmd);
     $okbut->pack(-side => "left", -expand => 1, -padx => 1, -pady => 1);
     my $cancelbut = $bot_frame->Button(-text => "Cancel",
-                                       -command => $cancel_cmd, -fg=>'RED');
+                                       -command => $cancel_cmd);
     $cancelbut->pack(-side => "left", -expand => 1, -padx => 1, -pady => 1);
     $dlg->protocol("WM_DELETE_WINDOW" => $cancel_cmd);
     $dlg->bind('<Escape>' => $cancel_cmd);
@@ -915,7 +901,7 @@ sub comp_select_dialog {
     $dlg->withdraw;
     my $f = $dlg->Frame();
     $f->pack(-side => 'top');
-    $f->Label(-text => "Available component definitions:", -fg=>'blue')->pack;
+    $f->Label(-text => "Available component definitions:")->pack;
     my $list = $f->Scrolled('MyListbox', -width => 50, -height => 10,
                             -setgrid => 1, -scrollbars => 'osre');
     $list->pack(-expand => 'yes', -fill => 'y', -anchor => 'n');
@@ -923,9 +909,9 @@ sub comp_select_dialog {
     my @namelist = map compname($_), @sorted;
     $list->insert(0, @namelist);
     $list->activate(0);
-    my $name = $f->Label(-text => "Name: ", -anchor => 'w', -fg=>'red');
+    my $name = $f->Label(-text => "Name: ", -anchor => 'w');
     $name->pack(-fill => 'x');
-    my $loc = $f->Label(-text => "Location: ", -anchor => 'w', -fg=>'red');
+    my $loc = $f->Label(-text => "Location: ", -anchor => 'w');
     $loc->pack(-fill => 'x');
     my $text = $f->Scrolled(qw/ROText -relief sunken -bd 2 -setgrid true
                             -height 10 -width 80 -scrollbars osoe/);
@@ -934,10 +920,10 @@ sub comp_select_dialog {
     my $f1 = $f->Frame();
     $f1->pack(-fill => 'x');
     my $author = $f1->Label(-text => "Author: ",
-                            -anchor => 'w', -justify => 'left', -fg=>'blue');
+                            -anchor => 'w', -justify => 'left');
     $author->pack(-side => 'left');
     my $date = $f1->Label(-text => "Date: ",
-                          -anchor => 'w', -justify => 'left', -fg=>'blue');
+                          -anchor => 'w', -justify => 'left');
     $date->pack(-side => 'right');
 
     my $bot_frame = $dlg->Frame(-relief => "raised", -bd => 1);
@@ -958,7 +944,7 @@ sub comp_select_dialog {
                            "Author: $info->{'identification'}{'author'}");
         $date->configure(-text => "Date: $info->{'identification'}{'date'}");
         $text->delete("1.0", "end");
-        $text->insert("end", "$info->{'identification'}{'short'}\n\n","SHORT");
+        $text->insert("end", "$info->{'identification'}{'short'}\n\n","short");
         $text->insert("end", $info->{'description'});
     };
     my $accept_cmd = sub { $selected = 'Ok'; };
@@ -967,10 +953,10 @@ sub comp_select_dialog {
     $list->selecthook($select_cmd);
     $list->bind('<Double-Button-1>' => $accept_cmd);
     $list->bind('<Return>' => $accept_cmd);
-    my $okbut = $bot_frame->Button(-text => "Ok", -command => $accept_cmd, -fg=>'green');
+    my $okbut = $bot_frame->Button(-text => "Ok", -command => $accept_cmd);
     $okbut->pack(-side => "left", -expand => 1, -padx => 1, -pady => 1);
     my $cancelbut = $bot_frame->Button(-text => "Cancel",
-                                       -command => $cancel_cmd, -fg=>'red');
+                                       -command => $cancel_cmd);
     $cancelbut->pack(-side => "left", -expand => 1, -padx => 1, -pady => 1);
     $dlg->protocol("WM_DELETE_WINDOW" => $cancel_cmd);
     $dlg->bind('<Escape>' => $cancel_cmd);
@@ -995,7 +981,7 @@ sub comp_select_dialog {
 sub sitemenu_build {
     my ($w,$menu) = @_;
     my $sites;
-    my $sitemenu = $menu->Menubutton(-text => $MCSTAS::mcstas_config{'PARTICLE'}.' site', -underline => 0);
+    my $sitemenu = $menu->Menubutton(-text => 'Neutron site', -underline => 0);
     $sitemenu->pack(-side=>'left');
 
     # Scan each .instr file in the examples folder, find out which
@@ -1006,51 +992,22 @@ sub sitemenu_build {
         next unless @instruments;
         @paths = map("$MCSTAS::sys_dir/examples/$_", grep(/\.(instr)$/, @instruments));
         my $j;
-        my @added;   # Names of sites
+        my @added; # Names of sites
         my @handles; # Menu handles
+        my $index;
         my $CurrentSub;
-        
-        # SEARCH sites, read all instruments to get the list of sites
-        for ($j=0 ; $j<@paths; $j++) {
-            # What site is this one from?
-            my $pid = open(READER,$paths[$j]);
-            while(<READER>) {
-                # Look for %INSTRUMENT_SITE:
-                if (/%INSTRUMENT_SITE:\s*(\w*)/) {
-                    # Check if that menu has been added?
-                    my $k;
-                    my $taken = 0;
-                    for ($k=0; $k<@added; $k++) {
-                        if ($added[$k] eq $1) { # found existing site sub-menu
-                            $taken = 1;
-                        }
-                    }
-                    if ($taken == 0) {          # add new site sub-menu
-                        push @added, $1;
-                    }
-                }
-            } # end while READER
-        }
-        
-        # SORT site items and build sub-menus
-        @added = sort @added;
-        # build sub-menus
-        for ($k=0; $k<@added; $k++) {
-          $CurrentSub = $sitemenu->cascade(-label => $added[$k]);
-          push @sites, $CurrentSub;
-        }
-        # add last item for Undefined site instruments
-        push @added, "Undefined site";
-        $CurrentSub = $sitemenu->cascade(-label => "Undefined site");
-        push @sites, $CurrentSub; # will be last site item
+  # Add subitem for instruments without cathegory
+  push @added, "Undefined site";
+  $CurrentSub = $sitemenu->cascade(-label => "Undefined site");
+  push @sites, $CurrentSub;
 
-        # STORE instruments 
         for ($j=0 ; $j<@paths; $j++) {
             # What site is this one from?
             my $pid = open(READER,$paths[$j]);
             my $cname="";  # real name of the instrument (DEFINE)
-            my $site_tag=0;
-            my $index=@added;
+            my ($base, $dirname, $suffix);
+            $base = "";
+      my $site_tag=0;
             while(<READER>) {
                 # Look for real instrument name
                 if (m!DEFINE\s+INSTRUMENT\s+([a-zA-Z0-9_]+)\s*(.*)!i) {
@@ -1058,23 +1015,35 @@ sub sitemenu_build {
                 }
                 # Look for %INSTRUMENT_SITE:
                 if (/%INSTRUMENT_SITE:\s*(\w*)/) {
+        # This one has a site tag
+        $site_tag = 1;
                     # Check if that menu has been added?
                     my $k;
+                    my $taken = 0;
                     for ($k=0; $k<@added; $k++) {
-                        if ($added[$k] eq $1) { # found existing site sub-menu
+                        if ($added[$k] eq $1) {
+                            $taken = 1;
                             $index = $k;
-                            $site_tag=1;
+                            $CurrentSub = $sites[$k];
                         }
+                    }
+                    if ($taken == 0) {
+                        push @added, $1;
+                        $CurrentSub = $sitemenu->cascade(-label => $1);
+                        push @sites, $CurrentSub;
+                        $index = @added;
                     }
                 }
             } # end while
             # Add the instrument to the given menu.
-            my ($base, $dirname, $suffix);
             ($base, $dirname, $suffix) = fileparse($paths[$j],".instr");
             if ($cname ne "" && $cname ne $base) { $base = "$base ($cname)"; }
-            $CurrentSub = $sites[$index];
-            $CurrentSub->command(-label => "$base", 
-              -command => [ sub { sitemenu_runsub(@_)}, $paths[$j], $w]);
+      if ($site_tag == 1) {
+    $CurrentSub->command(-label => "$base", -command => [ sub { sitemenu_runsub(@_)}, $paths[$j], $w]);
+      } else {
+    $CurrentSub = $sites[0]; # 'Undefined site' menu
+    $CurrentSub->command(-label => "$base", -command => [ sub { sitemenu_runsub(@_)}, $paths[$j], $w]);
+      }
         }
     }
 }

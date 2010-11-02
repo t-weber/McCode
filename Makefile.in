@@ -1,7 +1,7 @@
-# Makefile for @MCCODE_NAME@.
+# Makefile for McStas.
 #
-#   This file is part of the @MCCODE_NAME@ ray-trace simulation package
-#   Copyright (C) 1997-2008, All rights reserved
+#   This file is part of the McStas neutron ray-trace simulation package
+#   Copyright (C) 1997-2010, All rights reserved
 #   Risoe National Laborartory, Roskilde, Denmark
 #   Institut Laue Langevin, Grenoble, France
 #
@@ -24,8 +24,7 @@
 # make clean           clean distro
 # make test            distro self-test
 # make plotter         best plotter choice
-# make pgplot          plotter PGPLOT selection
-# make reconfigure     reconfigure @MCCODE_TARNAME@ installation (after software update)
+# make reconfigure     reconfigure McStas installation (after software update)
 # make install-pgplot  build and install PGPLOT (including perl-PGPLOT)
 # make install-scilab  build and install Scilab
 # make install-apps    install highligh syntax in gedit/kate 
@@ -39,11 +38,10 @@ bindir = @bindir@
 srcdir = @srcdir@
 libdir = @libdir@
 mandir = @mandir@
-PWD = `pwd`
 
 
 DEBUG = -DDEBUG=0
-libdir_@MCCODE_TARNAME@ = $(libdir)/@MCCODE_TARNAME@
+mc_libdir = $(libdir)/mcstas
 
 CC = @CC@
 MINGW = @MINGW@
@@ -53,7 +51,7 @@ LDFLAGS= @LDFLAGS@
 HAVE_QSORT = @HAVE_QSORT@
 USE_NEXUS = @HAVE_NEXUS@
 
-DEFS = @MCCODE_NAME@ @DEFS@ $(DEBUG)
+DEFS = @DEFS@ $(DEBUG)
 LIBS = @LIBS@
 
 PERL = @PERL@
@@ -82,93 +80,203 @@ INSTALL_DATA = @INSTALL_DATA@
 # End of configuration section.
 #
 
-all: @MCCODE_TARNAME@
+OBJECTS=instrument.tab.o lex.yy.o debug.o \
+	memory.o list.o symtab.o coords.o cexp.o \
+	file.o cogen.o port.o
+COBJECTS=instrument.tab.c lex.yy.c debug.c \
+	memory.c list.c symtab.c coords.c cexp.c \
+	file.c cogen.c port.c
 
-@MCCODE_TARNAME@: $(OBJECTS)
-	cd src/ && $(MAKE)
+PERLOBJ=gscan.fixpl mcdisplay.fixpl mcplot.fixpl mcresplot.fixpl mcrun.fixpl \
+        mcgui.fixpl mcdoc.fixpl mcstas2vitess.fixpl mcconvert.fixpl mcdaemon.fixpl mcformatgui.fixpl
+PERLBIN=gscan mcdisplay mcplot mcresplot mcrun mcgui mcdoc mcstas2vitess mcconvert mcdaemon mcformatgui
+BINOBJS=$(PERLOBJ) mcstas mcformat
 
-@MCCODE_TARNAME@.win32: $(OBJECTS)
-	cd src/ && $(MAKE) @MCCODE_TARNAME@.win32
+.SUFFIXES: .c .o .pl .fixpl
+
+.c.o:
+	$(CC) -I. -I$(srcdir) -c $(CFLAGS) -DMCSTAS='"'$(mc_libdir)'"' $(DEFS) $<
+
+.pl.fixpl:
+	sed -e 's+#! /usr/bin/perl+#! '$(PERL)'+' \
+	    -e 's+\$MCSTAS::sys_dir = "/usr/local/lib/mcstas"+\$MCSTAS::sys_dir = "'$(mc_libdir)'"+' \
+	    < $(srcdir)/$< > $@
+	chmod +x $@
+
+
+all: $(BINOBJS)
+
+mcstas: $(OBJECTS)
+	$(CC) -o mcstas $(CFLAGS) $(LDFLAGS) $(DEFS) $(OBJECTS) -lm
+
+mcstas.win32: $(COBJECTS)
+	$(MINGW) -o mcstas.exe -DMCSTAS='"C:\\McStas\\lib"' $(CFLAGS) $(LDFLAGS) $(DEFS) $(COBJECTS) -lm $(USE_NEXUS)
+	$(MINGW) -o mcformat.exe -DMCSTAS='"C:\\McStas\\lib"' $(CFLAGS) $(LDFLAGS) $(DEFS) mcformat.c -lm $(USE_NEXUS)
+
+
+mcformat:
+	$(CC) -o mcformat $(CFLAGS) $(LDFLAGS) $(DEFS) mcformat.c -lm $(LIBS) $(USE_NEXUS)
 
 clean:
-	cd src/ && $(MAKE) clean
-	rm -f src/config.cache config.cache
+	rm -f $(BINOBJS) $(OBJECTS) $(PERLOBJ) TAGS \
+	instrument.tab.c instrument.tab.h instrument.output lex.yy.c \
+  config.cache Makefile
+TAGS:
+	etags *.[chly]
 
-distclean:
-	cd src/ && $(MAKE) distclean
-	rm -f src/config.cache src/Makefile config.cache Makefile
+install: installdirs $(BINOBJS)
+	$(INSTALL_PROGRAM) mcstas $(bindir)/mcstas
+	$(INSTALL_PROGRAM) mcformat $(bindir)/mcformat
+	for pgm in $(PERLBIN); do \
+	  $(INSTALL_PROGRAM) $$pgm.fixpl $(bindir)/$$pgm; \
+	done
+	if [ -d $(mc_libdir) ]; then \
+	  echo "Moving your old library dir $(mc_libdir) to $(mc_libdir).`date +%Y%m%d_%H.%M`"; \
+	  mv -f $(mc_libdir) $(mc_libdir).`date +%Y%m%d_%H.%M`;\
+        fi;
+	$(srcdir)/mkinstalldirs $(mc_libdir)
+	for file in `cd lib; ls`; do \
+	  if [ -d lib/$$file ]; then \
+	    $(srcdir)/mkinstalldirs $(mc_libdir)/$$file; \
+	    for comp in `cd lib/$$file; ls`; do \
+        if [ -f $(mc_libdir)/$$file/$$comp ]; then \
+          echo "Renaming old library element version $(mc_libdir)/$$file/$$comp to $(mc_libdir)/$$file/$$comp.old"; \
+          mv -f $(mc_libdir)/$$file/$$comp $(mc_libdir)/$$file/$$comp.old; \
+        fi; \
+	      if [ -d lib/$$file/$$comp ]; then \
+          $(srcdir)/mkinstalldirs $(mc_libdir)/$$file/$$comp; \
+          for tool in `cd lib/$$file/$$comp; ls`; do \
+	      if [ -d lib/$$file/$$comp/$$tool ]; then \
+          $(srcdir)/mkinstalldirs $(mc_libdir)/$$file/$$comp/$$tool ; \
+	        for subtool in `cd lib/$$file/$$comp/$$tool; ls`; do \
+		  if [ -d lib/$$file/$$comp/$$tool/$$subtool ]; then \
+		     $(srcdir)/mkinstalldirs $(mc_libdir)/$$file/$$comp/$$tool/$$subtool ; \
+	             for subsubtool in `cd lib/$$file/$$comp/$$tool/$$subtool; ls`; do \
+                       $(INSTALL_DATA) lib/$$file/$$comp/$$tool/$$subtool/$$subsubtool $(mc_libdir)/$$file/$$comp/$$tool/$$subtool/$$subsubtool; \
+                     done \
+		  else \
+                    $(INSTALL_DATA) lib/$$file/$$comp/$$tool/$$subtool $(mc_libdir)/$$file/$$comp/$$tool/$$subtool; \
+		  fi; \
+                done \
+              else \
+                $(INSTALL_DATA) lib/$$file/$$comp/$$tool $(mc_libdir)/$$file/$$comp/$$tool; \
+	      fi; \
+          done \
+        else \
+	        $(INSTALL_DATA) lib/$$file/$$comp $(mc_libdir)/$$file/$$comp; \
+        fi; \
+	    done \
+	  else \
+	    $(INSTALL_DATA) lib/$$file $(mc_libdir)/$$file; \
+	  fi \
+	done
+	MCSTAS=$(mc_libdir)
+	export MCSTAS
+	./mcdoc.fixpl --text
+	$(INSTALL_DATA) *.1 $(mandir)/man1
+	mkdir $(mc_libdir)/tools/perl/modules
+	cd support/Proc-Simple-1.19 && $(PERL) Makefile.PL LIB=$(mc_libdir)/tools/perl/modules PREFIX=$(mc_libdir)/tools/perl/modules && make && make install
+	cd support/Tk-CodeText-0.3.4 && $(PERL) Makefile.PL LIB=$(mc_libdir)/tools/perl/modules PREFIX=$(mc_libdir)/tools/perl/modules && make && make install
+	cd support/Math-Amoeba-0.04 && $(PERL) Makefile.PL LIB=$(mc_libdir)/tools/perl/modules PREFIX=$(mc_libdir)/tools/perl/modules && make && make install
+	chmod a+x $(mc_libdir)/tools/perl/mcstas_reconfigure
+	echo McStas library has been installed in MCSTAS=$(mc_libdir), and binaries in $(bindir)
+	echo "Start McStas with: mcgui or use mcrun for command line simulations"
+	echo "==== Installation finished. Thanks for using McStas ===="
 
-install: 
-	cd src/ && $(MAKE) install
+installdirs:
+	$(srcdir)/mkinstalldirs $(bindir) $(libdir) $(mc_libdir) $(mandir)/man1
+
+instrument.tab.o: mcstas.h
+lex.yy.o: mcstas.h instrument.tab.h
+debug.o: mcstas.h
+memory.o: mcstas.h
+symtab.o: mcstas.h
+list.o: mcstas.h
+coords.o: mcstas.h
+cexp.o: mcstas.h
+file.o: mcstas.h
+cogen.o: mcstas.h
+port.o: port.h
+mcformat.o: mcstas.h
+
+instrument.tab.c instrument.tab.h: instrument.y
+	$(BISON) $(BISONFLAGS) instrument.y
+
+lex.yy.c: instrument.l
+	$(FLEX) $(FLEXFLAGS) instrument.l
 
 # Prefer Scilab over Matlab over PGPLOT
 config: plotter
 plotter:
 	if [ $(VRML) != no ]; then \
-		$(MAKE) vrml; \
+		make vrml; \
 	fi; \
 	if [ $(SCILAB) != no ]; then \
-		$(MAKE) scilab; \
+		make scilab; \
 	fi; \
 	if [ $(MATLAB) != no ]; then \
-		$(MAKE) matlab; \
+		make matlab; \
 	fi; \
 	if [ $(PGPLOT) != no ]; then \
-		$(MAKE) pgplot; \
+		make pgplot; \
 	fi;
 
 scilab:
-	sed "s/PLOTTER => '.*'./PLOTTER => 'Scilab'\,/" lib/tools/perl/mccode_config.perl > lib/tools/perl/mccode_config.perl.tmp
-	mv lib/tools/perl/mccode_config.perl.tmp lib/tools/perl/mccode_config.perl
+	sed "s/PLOTTER => '.*'./PLOTTER => 'Scilab'\,/" lib/tools/perl/mcstas_config.perl > lib/tools/perl/mcstas_config.perl.tmp
+	mv lib/tools/perl/mcstas_config.perl.tmp lib/tools/perl/mcstas_config.perl
 matlab:
-	sed "s/PLOTTER => '.*'./PLOTTER => 'Matlab'\,/" lib/tools/perl/mccode_config.perl > lib/tools/perl/mccode_config.perl.tmp
-	mv lib/tools/perl/mccode_config.perl.tmp lib/tools/perl/@MCCODE_TARNAME@_config.perl
+	sed "s/PLOTTER => '.*'./PLOTTER => 'Matlab'\,/" lib/tools/perl/mcstas_config.perl > lib/tools/perl/mcstas_config.perl.tmp
+	mv lib/tools/perl/mcstas_config.perl.tmp lib/tools/perl/mcstas_config.perl
 pgplot:
-	sed "s/PLOTTER => '.*'./PLOTTER => 'McStas'\,/" lib/tools/perl/mccode_config.perl > lib/tools/perl/mccode_config.perl.tmp
-	mv lib/tools/perl/mccode_config.perl.tmp lib/tools/perl/mccode_config.perl
+	sed "s/PLOTTER => '.*'./PLOTTER => 'McStas'\,/" lib/tools/perl/mcstas_config.perl > lib/tools/perl/mcstas_config.perl.tmp
+	mv lib/tools/perl/mcstas_config.perl.tmp lib/tools/perl/mcstas_config.perl
 vrml:
-	sed "s/PLOTTER => '.*'./PLOTTER => 'VRML'\,/" lib/tools/perl/mccode_config.perl > lib/tools/perl/mccode_config.perl.tmp
-	mv lib/tools/perl/mccode_config.perl.tmp lib/tools/perl/mccode_config.perl
+	sed "s/PLOTTER => '.*'./PLOTTER => 'VRML'\,/" lib/tools/perl/mcstas_config.perl > lib/tools/perl/mcstas_config.perl.tmp
+	mv lib/tools/perl/mcstas_config.perl.tmp lib/tools/perl/mcstas_config.perl
 PGPLOT: pgplot
 Matlab: matlab
 Scilab: scilab
 VRML: vrml
 
-test:
-	cd src && $(MAKE) test
-
-uninstall:
-	cd src && $(MAKE) uninstall
-
-reconfigure:
-	cd $(libdir_@MCCODE_TARNAME@)/tools/perl/
-	$(libdir_@MCCODE_TARNAME@)/tools/perl/mccode_reconfigure
-
-# Optional auto install of patched perl-Tk, scilab and pgplot5 libs
 install-pgplot:
-	cd support/common && $(MAKE) install-pgplot
-	cd support/common && $(MAKE) perl-PGPLOT
-	make pgplot
-	@echo "@MCCODE_NAME@: pgplot installed, run 'make reconfigure'"
+	cd support/pgplot && ./pgplot.sh && echo "McStas: run './configure; make; make install' again"
 
 install-scilab:
-	cd support/common && $(MAKE) compile-scilab && echo "@MCCODE_NAME@: run './configure; make; make install' again"
+	cd support/scilab && ./scilab.sh && echo "McStas: run './configure; make; make install' again"
 
+test:
+	./mcrun.fixpl --test
+
+uninstall:
+	cd $(bindir); rm -f $(BINOBJS)
+	rm -rf $(mc_libdir)
+
+reconfigure:
+	cd $(mc_libdir)/tools/perl/
+	$(mc_libdir)/tools/perl/mcstas_reconfigure
+
+# Optional auto install of patched perl-Tk package
+tk:
+	if [ $(WGET) != no ]; then \
+		$(WGET) http://www.mcstas.org/download/Tk-804.027_gtk2_patch.tar.gz &&\
+		tar xzvf Tk-804.027_gtk2_patch.tar.gz > /dev/null && \
+		cd Tk-804.027_gtk2_patch && $(PERL) Makefile.PL LIB=$(mc_libdir)/tools/perl/modules PREFIX=$(mc_libdir)/tools/perl/modules && make && make install ;\
+	fi;
+	
 install-apps:
 	if [ -d /usr/share/applications/ ]; then \
-	  cp support/common/Desktop/McStas.desktop /usr/share/applications/; \
+	  cp support/Desktop/McStas.desktop /usr/share/applications/; \
 	fi;
 	if [ -d /usr/share/pixmaps/ ]; then \
-	  cp support/common/Desktop/mcstas-icon.png /usr/share/pixmaps/; \
+	  cp support/Desktop/mcstas-icon.png /usr/share/pixmaps/; \
 	fi;
 	if [ -d /usr/share/gtksourceview-1.0/ ]; then \
-	  cp support/common/editors/mcstas1.lang /usr/share/gtksourceview-1.0/language-specs/; \
+	  cp lib/editors/mcstas1.lang /usr/share/gtksourceview-1.0/language-specs/; \
 	fi;
 	if [ -d /usr/share/gtksourceview-2.0/ ]; then \
-	  cp support/common/editors/mcstas2.lang /usr/share/gtksourceview-2.0/language-specs/; \
+	  cp lib/editors/mcstas2.lang /usr/share/gtksourceview-2.0/language-specs/; \
 	fi;
 	if [ -d /usr/share/apps/katepart/syntax/ ]; then \
-	  cp support/common/editors/mcstas.xml /usr/share/apps/katepart/syntax/; \
+	  cp lib/editors/mcstas.xml /usr/share/apps/katepart/syntax/; \
 	fi;
-
 

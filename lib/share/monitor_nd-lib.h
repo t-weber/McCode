@@ -12,7 +12,7 @@
 * Date: Aug 28, 2002
 * Origin: ILL
 * Release: McStas 1.6
-* Version: $Revision: 1.19 $
+* Version: $Revision: 1.17 $
 *
 * This file is to be imported by the monitor_nd related components
 * It handles some shared functions.
@@ -20,66 +20,111 @@
 * Usage: within SHARE
 * %include "monitor_nd-lib"
 *
+* $Id: monitor_nd-lib.h,v 1.17 2008-04-01 09:15:04 farhi Exp $
+*
+* $Log: monitor_nd-lib.h,v $
+* Revision 1.17  2008-04-01 09:15:04  farhi
+* Monitor_nD now accepts up to 3 user variables, e.g. for coordinates
+* to be stored into "list".
+*
+* Revision 1.16  2006/07/21 14:09:07  farhi
+* Fix wrong structure member
+*
+* Revision 1.15  2006/07/21 09:03:23  farhi
+* Added in options'per steradian' flux estimate, and possibility to glue the
+* monitor to the shape of the 'previous' component (unactivate propagation), so
+* that we can mnonitor what's going on at the output surface of the previous comp.
+*
+* Revision 1.14  2005/08/24 13:14:40  lieutenant
+* new option 'exclusive'
+*
+* Revision 1.13  2005/07/25 14:55:08  farhi
+* DOC update:
+* checked all parameter [unit] + text to be OK
+* set all versions to CVS Revision
+*
+* Revision 1.12  2005/07/04 08:20:16  farhi
+* added support for radial distributions vxy kxy and xy=radius
+*
+* Revision 1.11  2005/02/22 16:11:03  farhi
+* Now saving absolute position of monitors as "position" field in header
+* Useful for plotting e.g. flux vs distance
+*
+* Revision 1.10  2005/01/18 10:35:56  farhi
+* Intall new MACROs for easy User Variable usage in Monitor_nD
+* MONND_DECLARE(comp)
+* MONND_USER_TITLE(comp, num, title)
+* MONND_USER_VALUE(comp, num, value)
+* comp is the name of a Monitor_nD component; num is 1 or 2 for UserVariable
+*
+* Revision 1.9  2004/11/30 16:11:37  farhi
+* defined some macros for an easier User variable handling. Should be updated in the header and Comp doc
+*
+* Revision 1.8  2003/02/11 12:28:46  farhi
+* Variouxs bug fixes after tests in the lib directory
+* mcstas_r  : disable output with --no-out.. flag. Fix 1D McStas output
+* read_table:corrected MC_SYS_DIR -> MCSTAS define
+* monitor_nd-lib: fix Log(signal) log(coord)
+* HOPG.trm: reduce 4000 points -> 400 which is enough and faster to resample
+* Progress_bar: precent -> percent parameter
+* CS: ----------------------------------------------------------------------
+*
+* Revision 1.1 2002/08/28 11:39:00 ef
+* Initial revision extracted from lib/monitors/Monitor_nD.comp
 *******************************************************************************/
 
 #ifndef MONITOR_ND_LIB_H
 
-#define MONITOR_ND_LIB_H "$Revision: 1.19 $"
+#define MONITOR_ND_LIB_H "1.1.1"
 #define MONnD_COORD_NMAX  30  /* max number of variables to record */
 
   typedef struct MonitornD_Defines
   {
-    int COORD_NONE  ;
-    int COORD_X     ;
-    int COORD_Y     ;
-    int COORD_Z     ;
-    int COORD_RADIUS; 
-    int COORD_VX    ;
-    int COORD_VY    ;
-    int COORD_VZ    ;
-    int COORD_V     ;
-    int COORD_T     ;
-    int COORD_P     ;
-    int COORD_SX    ;
-    int COORD_SY    ;
-    int COORD_SZ    ;
-    int COORD_KX    ;
-    int COORD_KY    ;
-    int COORD_KZ    ;
-    int COORD_K     ;
-    int COORD_ENERGY;
-    int COORD_LAMBDA;
-    int COORD_KXY   ;
-    int COORD_KYZ   ;
-    int COORD_KXZ   ;
-    int COORD_VXY   ;
-    int COORD_VYZ   ;
-    int COORD_VXZ   ;
-    int COORD_HDIV  ;
-    int COORD_VDIV  ;
-    int COORD_ANGLE ;
-    int COORD_NCOUNT;
-    int COORD_THETA ;
-    int COORD_PHI   ;
-    int COORD_USER1 ;
-    int COORD_USER2 ;
-    int COORD_USER3 ;
-    int COORD_XY    ;
-    int COORD_XZ    ;
-    int COORD_YZ    ;
+    char COORD_NONE  ;
+    char COORD_X     ;
+    char COORD_Y     ;
+    char COORD_Z     ;
+    char COORD_VX    ;
+    char COORD_VY    ;
+    char COORD_VZ    ;
+    char COORD_T     ;
+    char COORD_P     ;
+    char COORD_SX    ;
+    char COORD_SY    ;
+    char COORD_SZ    ;
+    char COORD_KX    ;
+    char COORD_KY    ;
+    char COORD_KZ    ;
+    char COORD_K     ;
+    char COORD_V     ;
+    char COORD_ENERGY;
+    char COORD_LAMBDA;
+    char COORD_RADIUS;
+    char COORD_KXY   ;
+    char COORD_VXY   ;
+    char COORD_HDIV  ;
+    char COORD_VDIV  ;
+    char COORD_ANGLE ;
+    char COORD_NCOUNT;
+    char COORD_THETA ;
+    char COORD_PHI   ;
+    char COORD_USER1 ;
+    char COORD_USER2 ;
+    char COORD_USER3 ;
 
     /* token modifiers */
-    int COORD_VAR   ; /* next token should be a variable or normal option */
-    int COORD_MIN   ; /* next token is a min value */
-    int COORD_MAX   ; /* next token is a max value */
-    int COORD_DIM   ; /* next token is a bin value */
-    int COORD_FIL   ; /* next token is a filename */
-    int COORD_EVNT  ; /* next token is a buffer size value */
-    int COORD_3HE   ; /* next token is a 3He pressure value */
-    int COORD_LOG   ; /* next variable will be in log scale */
-    int COORD_ABS   ; /* next variable will be in abs scale */
-    int COORD_SIGNAL; /* next variable will be the signal var */
-    int COORD_AUTO  ; /* set auto limits */
+    char COORD_VAR   ; /* next token should be a variable or normal option */
+    char COORD_MIN   ; /* next token is a min value */
+    char COORD_MAX   ; /* next token is a max value */
+    char COORD_DIM   ; /* next token is a bin value */
+    char COORD_FIL   ; /* next token is a filename */
+    char COORD_EVNT  ; /* next token is a buffer size value */
+    char COORD_3HE   ; /* next token is a 3He pressure value */
+    char COORD_INTERM; /* next token is an intermediate save value (percent) */
+    char COORD_LOG   ; /* next variable will be in log scale */
+    char COORD_ABS   ; /* next variable will be in abs scale */
+    char COORD_SIGNAL; /* next variable will be the signal var */
+    int  COORD_AUTO  ; /* set auto limits */
 
     char TOKEN_DEL[32]; /* token separators */
 
@@ -140,7 +185,9 @@
     double UserVariable1;
     double UserVariable2;
     double UserVariable3;
-    char   option[CHAR_BUF_LENGTH];
+    double Intermediate;
+    double IntermediateCnts;
+    char   option[1024];
 
     double Nsum;
     double psum, p2sum;
@@ -162,7 +209,7 @@
 
 void Monitor_nD_Init(MonitornD_Defines_type *, MonitornD_Variables_type *, MCNUM, MCNUM, MCNUM, MCNUM, MCNUM, MCNUM, MCNUM, MCNUM, MCNUM);
 double Monitor_nD_Trace(MonitornD_Defines_type *, MonitornD_Variables_type *);
-MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *, MonitornD_Variables_type *);
+void Monitor_nD_Save(MonitornD_Defines_type *, MonitornD_Variables_type *);
 void Monitor_nD_Finally(MonitornD_Defines_type *, MonitornD_Variables_type *);
 void Monitor_nD_McDisplay(MonitornD_Defines_type *,
  MonitornD_Variables_type *);

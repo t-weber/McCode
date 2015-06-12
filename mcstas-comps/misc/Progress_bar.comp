@@ -82,7 +82,7 @@ TRACE
   /* compute initial estimate of computation duration */
   if (!EndTime && ncount >= IntermediateCnts) {
     CurrentTime = NowTime;
-    if (difftime(NowTime,StartTime) > 10) { /* wait 10 sec before writing ETA */
+    if (difftime(NowTime,StartTime) > 10 && ncount) { /* wait 10 sec before writing ETA */
       EndTime = StartTime + (time_t)(difftime(NowTime,StartTime)
 				     *(double)mcget_ncount()/ncount);
       IntermediateCnts = 0;
@@ -98,7 +98,7 @@ TRACE
   }
   
   /* display percentage when percent or minutes have reached step */
-  if (EndTime &&
+  if (EndTime && mcget_ncount() &&
     (    (minutes && difftime(NowTime,CurrentTime) > minutes*60)
       || (percent && !minutes && ncount >= IntermediateCnts))   )
   {
@@ -136,7 +136,7 @@ FINALLY
 %{
   time_t NowTime;
   time(&NowTime);
-  fprintf(stdout, "\nFinally [%s/%s]. Time: ", mcinstrument_name, mcdirname ? mcdirname : ".");
+  fprintf(stdout, "\nFinally [%s:%s]. Time: ", mcinstrument_name, mcdirname ? mcdirname : ".");
   if (difftime(NowTime,StartTime) < 60.0)
     fprintf(stdout, "%g [s] ", difftime(NowTime,StartTime));
   else if (difftime(NowTime,StartTime) > 3600.0)

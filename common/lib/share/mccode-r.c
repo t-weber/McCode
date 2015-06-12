@@ -432,8 +432,10 @@ int strcasecmp( const char *s1, const char *s2 )
 }
 #endif
 
+#ifndef STRACPY
 /* this is a replacement to strncpy, but ensures that the copy ends with NULL */
 /* http://stracpy.blogspot.fr/2011/04/stracpy-strncpy-replacement.html */
+#define STRACPY
 char *stracpy(char *destination, const char *source, size_t amount)
 {
         while(amount--)
@@ -441,6 +443,7 @@ char *stracpy(char *destination, const char *source, size_t amount)
         *destination = '\0';
         return destination;
 }
+#endif
 
 /*******************************************************************************
 * mcfull_file: allocates a full file name=mcdirname+file. Catenate extension if missing.

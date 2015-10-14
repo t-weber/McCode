@@ -94,33 +94,39 @@ mcrestore_neutron(MCNUM *s, int index, double *x, double *y, double *z,
 /*******************************************************************************
 * mcsetstate: transfer parameters into global McStas variables 
 *******************************************************************************/
-void
+mcparticle
 mcsetstate(double x, double y, double z, double vx, double vy, double vz,
            double t, double sx, double sy, double sz, double p)
 {
-  extern double mcnx, mcny, mcnz, mcnvx, mcnvy, mcnvz;
-  extern double mcnt, mcnsx, mcnsy, mcnsz, mcnp;
+  mcparticle mcneutron;
 
-  mcnx = x;
-  mcny = y;
-  mcnz = z;
-  mcnvx = vx;
-  mcnvy = vy;
-  mcnvz = vz;
-  mcnt = t;
-  mcnsx = sx;
-  mcnsy = sy;
-  mcnsz = sz;
-  mcnp = p;
+  mcneutron.x  = x;
+  mcneutron.y  = y;
+  mcneutron.z  = z;
+  mcneutron.vx = vx;
+  mcneutron.vy = vy;
+  mcneutron.vz = vz;
+  mcneutron.t  = t;
+  mcneutron.sx = sx;
+  mcneutron.sy = sy;
+  mcneutron.sz = sz;
+  mcneutron.p  = p;
+  mcneutron.uid       = mcget_run_num();
+  mcneutron.index     = 1;
+  mcneutron.absorbed  = 0;
+  mcneutron.restore   = 0;
+  mcneutron.scattered = 0;
+  
+  return(mcneutron);
 } /* mcsetstate */
 
 /*******************************************************************************
 * mcgenstate: set default neutron parameters 
 *******************************************************************************/
-void
+mcparticle
 mcgenstate(void)
 {
-  mcsetstate(0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
+  return(mcsetstate(0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1));
   /* old initialisation: mcsetstate(0, 0, 0, 0, 0, 1, 0, sx=0, sy=1, sz=0, 1); */
 }
 

@@ -506,7 +506,7 @@ long off_init(  char *offfile, double xwidth, double yheight, double zdepth,
       continue; 
     }
     if (ret != 3) {
-      fprintf(stderr, "Error: can not read [xyz] coordinates for vertex %li in file %s (interoff/off_init). Read %i values.\n", 
+      fprintf(stderr, "Error: can not read [xyz] coordinates for vertex %li in file %s (interoff/off_init). Read %li values.\n", 
         i, offfile, ret);
       exit(2);
     }
@@ -593,7 +593,7 @@ long off_init(  char *offfile, double xwidth, double yheight, double zdepth,
       continue; 
     }
     if (ret != 1) {
-      fprintf(stderr, "Error: can not read polygon %i length in file %s (interoff/off_init)\n", 
+      fprintf(stderr, "Error: can not read polygon %li length in file %s (interoff/off_init)\n", 
         i, offfile);
       exit(3);
     }

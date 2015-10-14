@@ -137,7 +137,9 @@ void list_add(List, void *);        /* Add element at end. */
 void list_free(List, void (*)(void *)); /* Deallocate a list. */
 int list_len(List l);               /* Get list length. */
 List_handle list_iterate(List);     /* Prepare to traverse list. */
+List_handle list_iterate_back(List);     /* Prepare to traverse list. */
 void *list_next(List_handle);       /* Get next element in list. */
+void *list_previous(List_handle);       /* Get previous element in list. */
 void list_iterate_end(List_handle); /* End list traversal. */
 
 
@@ -247,6 +249,8 @@ extern int parse_restricted;
 extern Symtab read_components;
 /* Verbose parsing/code generation */
 extern char verbose;
+/* embed instrument source code */
+extern char embed_instrument_file;
 /* Will store component instance for PREVIOUS reference */
 extern struct comp_inst *previous_comp;
 extern struct comp_inst *myself_comp;
@@ -371,10 +375,12 @@ struct code_block
   };
 
 /* Note: the enum instr_formal_types definition MUST be kept
-   synchronized with the one in mcstas-r.h. */
+   synchronized with the one in mccode-r.h. */
 enum instr_formal_types
   {
-    instr_type_double, instr_type_int, instr_type_string
+    instr_type_int, 
+    instr_type_string, instr_type_char, 
+    instr_type_vector, instr_type_double
   };
 
 /* Component formal input parameters. */
@@ -390,8 +396,15 @@ struct comp_iformal
 struct comp_def
   {
     char *name;                     /* Component name. */
-    char *source;                   /*  Name of source file for definition */
-    int  comp_inst_number;          /* Number of this comp in the instrument  */
+    char *source;                   /* Name of source file for definition */
+    int  flag_defined_structure;    /* set to 1 when the parameter block is generated */
+    int  flag_defined_share;        /* set to 1 when the SHARE block is generated */
+    int  flag_defined_init;         /* set to 1 when a common INIT block is generated */
+    int  flag_defined_save;         /* set to 1 when a common SAVE block is generated */
+    int  flag_defined_finally;      /* set to 1 when a common FINALLY block is generated */
+    int  flag_defined_display;      /* set to 1 when a common DISPLAY block is generated */
+    int  flag_defined_trace;        /* set to 1 when a common TRACE block is generated */
+    int  counter_instances;         /* number of instances using the same definition/class */
     List def_par, set_par, out_par; /* Formal parameters. */
     struct code_block *share_code;  /* Unique Declaration code (shared). */
     struct code_block *decl_code;   /* Declaration code. */
@@ -399,7 +412,7 @@ struct comp_def
     struct code_block *trace_code;  /* Ray-trace simulation code. */
     struct code_block *save_code;   /* Code executed to save data */
     struct code_block *finally_code;    /* Code for simulation end. */
-    struct code_block *mcdisplay_code;  /* Code for drawing components. */
+    struct code_block *display_code;  /* Code for drawing components. */
   };
 
 /* Component group instances */

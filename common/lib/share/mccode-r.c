@@ -347,16 +347,22 @@ static struct
     char * (*parminfo)(char *);
     void (*error)(char *, char *);
     void (*printer)(char *, void *);
-} mcinputtypes[] = {
+} mcinputtypes[] = { // int, char*, char, double*, double
   {
-    mcparm_double, mcparminfo_double, mcparmerror_double,
-    mcparmprinter_double
-  }, {
     mcparm_int, mcparminfo_int, mcparmerror_int,
     mcparmprinter_int
   }, {
     mcparm_string, mcparminfo_string, mcparmerror_string,
     mcparmprinter_string
+  }, {
+    mcparm_string, mcparminfo_string, mcparmerror_string,
+    mcparmprinter_string
+  }, {
+    mcparm_double, mcparminfo_double, mcparmerror_double,
+    mcparmprinter_double
+  }, {
+    mcparm_double, mcparminfo_double, mcparmerror_double,
+    mcparmprinter_double
   }
 };
 
@@ -423,6 +429,19 @@ int strcasecmp( const char *s1, const char *s2 )
     c2 = tolower( (unsigned char) *s2++ );
   } while (c1 == c2 && c1 != 0);
   return c2 > c1 ? -1 : c1 > c2;
+}
+#endif
+
+#ifndef STRACPY
+/* this is a replacement to strncpy, but ensures that the copy ends with NULL */
+/* http://stracpy.blogspot.fr/2011/04/stracpy-strncpy-replacement.html */
+#define STRACPY
+char *stracpy(char *destination, const char *source, size_t amount)
+{
+        while(amount--)
+          if((*destination++ = *source++) == '\0') break;
+        *destination = '\0';
+        return destination;
 }
 #endif
 
@@ -2096,6 +2115,10 @@ mcsetseed(char *arg)
 {
   mcseed = atol(arg);
   if(mcseed) {
+#ifdef USE_MPI
+    if (mpi_node_count > 1) srandom(mcseed+mpi_node_rank);
+    else
+#endif
     srandom(mcseed);
   } else {
     fprintf(stderr, "Error: seed must not be zero (mcsetseed)\n");
@@ -2522,23 +2545,24 @@ mcstatic inline double scalar_prod(
 * mccoordschange: applies rotation to (x y z) and (vx vy vz) and Spin (sx,sy,sz)
 *******************************************************************************/
 void
-mccoordschange(Coords a, Rotation t, double *x, double *y, double *z,
-               double *vx, double *vy, double *vz, double *sx, double *sy, double *sz)
+mccoordschange(Coords a, Rotation t, mcparticle *particle)
 {
   Coords b, c;
 
-  b.x = *x;
-  b.y = *y;
-  b.z = *z;
+  b.x = particle->x;
+  b.y = particle->y;
+  b.z = particle->z;
   c = rot_apply(t, b);
   b = coords_add(c, a);
-  *x = b.x;
-  *y = b.y;
-  *z = b.z;
+  particle->x = b.x;
+  particle->y = b.y;
+  particle->z = b.z;
 
-  if (*vz != 0.0 || *vx != 0.0 || *vy != 0.0) mccoordschange_polarisation(t, vx, vy, vz);
+  if (particle->vz != 0.0 || particle->vx != 0.0 || particle->vy != 0.0) 
+    mccoordschange_polarisation(t, &(particle->vx), &(particle->vy), &(particle->vz));
 
-  if (*sz != 0.0 || *sx != 0.0 || *sy != 0.0) mccoordschange_polarisation(t, sx, sy, sz);
+  if (particle->sz != 0.0 || particle->sx != 0.0 || particle->sy != 0.0) 
+    mccoordschange_polarisation(t, &(particle->sx), &(particle->sy), &(particle->sz));
 
 }
 
@@ -3256,6 +3280,7 @@ mchelp(char *pgmname)
 "  --no-output-files          Do not write any data files.\n"
 "  -h        --help           Show this help message.\n"
 "  -i        --info           Detailed instrument information.\n"
+"  --source                   Show the instrument code which was compiled.\n"
 "  --format=FORMAT            Output data files using FORMAT="
    FLAVOR_UPPER
 #ifdef USE_NEXUS
@@ -3401,9 +3426,10 @@ mcreadparams(void)
           buf[len] = '\0';
         }
       }
-
-      status = (*mcinputtypes[mcinputtable[i].type].getparm)
+      if (mcinputtypes[mcinputtable[i].type].getparm != NULL)
+        status = (*mcinputtypes[mcinputtable[i].type].getparm)
                    (buf, mcinputtable[i].par);
+      else status=1;
       if(!status)
       {
         (*mcinputtypes[mcinputtable[i].type].error)(mcinputtable[i].name, buf);
@@ -3480,7 +3506,7 @@ mcparseoptions(int argc, char *argv[])
       usedir=&argv[i][6];
     else if(!strcmp("-h", argv[i]))
       mcshowhelp(argv[0]);
-    else if(!strcmp("--help", argv[i]))
+    else if(!strcmp("--help", argv[i]) || !strcmp("--version", argv[i]))
       mcshowhelp(argv[0]);
     else if(!strcmp("-i", argv[i])) {
       mcformat=FLAVOR_UPPER;
@@ -3490,7 +3516,7 @@ mcparseoptions(int argc, char *argv[])
       mcinfo();
     else if(!strcmp("-t", argv[i]))
       mcenabletrace();
-    else if(!strcmp("--trace", argv[i]))
+    else if(!strcmp("--trace", argv[i]) || !strcmp("--verbose", argv[i]))
       mcenabletrace();
     else if(!strcmp("--gravitation", argv[i]))
       mcgravitation = 1;
@@ -3504,6 +3530,16 @@ mcparseoptions(int argc, char *argv[])
     }
     else if(!strcmp("--no-output-files", argv[i]))
       mcdisable_output_files = 1;
+    else if(!strcmp("--source", argv[i])) {
+      printf("/* Source code %s from %s: */\n"
+        "/******************************************************************************/\n"
+        "%s\n"
+        "/******************************************************************************/\n"
+        "/* End of source code %s from %s */\n",
+        mcinstrument_name, mcinstrument_source, mcinstrument_code, 
+        mcinstrument_name, mcinstrument_source);
+      exit(1);
+    }
     else if(argv[i][0] != '-' && (p = strchr(argv[i], '=')) != NULL)
     {
       *p++ = '\0';
@@ -3558,9 +3594,6 @@ mcparseoptions(int argc, char *argv[])
 } /* mcparseoptions */
 
 #ifndef NOSIGNALS
-mcstatic char  mcsig_message[256];
-
-
 /*******************************************************************************
 * sighandler: signal handler that makes simulation stop, and save results
 *******************************************************************************/
@@ -3730,7 +3763,7 @@ mcseed = (long)t+(long)getpid();
   mcstartdate = (long)t;  /* set start date before parsing options and creating sim file */
 
 /* *** parse options ******************************************************* */
-  SIG_MESSAGE("main (Start)");
+  SIG_MESSAGE("[" __FILE__ "] main START");
   mcformat=getenv(FLAVOR_UPPER "_FORMAT") ?
            getenv(FLAVOR_UPPER "_FORMAT") : FLAVOR_UPPER;
   mcinstrument_exe = argv[0]; /* store the executable path */
@@ -3807,14 +3840,15 @@ mcseed = (long)t+(long)getpid();
     mcncount; /* number of rays per node */
 #endif
 
+#ifndef NEUTRONICS
+  mcparticle mcneutron = mcgenstate(); // initial particle
+#endif
+
 /* main particle event loop */
 while(mcrun_num < mcncount || mcrun_num < mcget_ncount())
   {
-#ifndef NEUTRONICS
-    mcgenstate();
-#endif
     /* old init: mcsetstate(0, 0, 0, 0, 0, 1, 0, sx=0, sy=1, sz=0, 1); */
-    mcraytrace();
+    mcraytrace(mcneutron);
     mcrun_num++;
   }
 
@@ -3855,7 +3889,7 @@ void neutronics_main_(float *inx, float *iny, float *inz, float *invx, float *in
   mcinit();
 
   /* *** parse options *** */
-  SIG_MESSAGE("main (Start)");
+  SIG_MESSAGE("[" __FILE__ "] main START");
   mcformat=getenv(FLAVOR_UPPER "_FORMAT") ?
            getenv(FLAVOR_UPPER "_FORMAT") : FLAVOR_UPPER;
 

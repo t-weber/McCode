@@ -102,7 +102,6 @@ int msw;
 double chamber_col_start, chamber_col_length, outside_chamber_collimator_w, outside_chamber_collimator_h;
 
 double from_col=1;
-double full_instrument;
 
 
 %}

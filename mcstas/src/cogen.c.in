@@ -388,6 +388,61 @@ static void cogen_defundef(struct comp_inst *comp, List l, char define_it)
   }
 } /* cogen_defundef */
 
+/* Kernighan&Ritchie Exercise 1-23:
+   Write a program to remove all comments from a C program,
+   Don't forget to handle quoted strings and character constants
+   properly. C Comments do not nest
+   
+   (c) Ethan Joachim Jul 6th 2013 (c) https://gist.github.com/EdgeCaseBerg/5938505 
+ */
+
+char *cogen_uncomment(char *s){
+  int first,second ,eatChar,lookAhead,previous;
+  int i=0, j=0;
+	first = s[i++];
+	while((second = s[i++]) != EOF){
+		if(first == '/')
+			if(second == '/'){
+				//Delete til the end of the line
+				while((eatChar=s[i++])!=EOF && eatChar != '\n')
+					;
+				//Print the newline
+				s[j++] =eatChar;
+			}else if(second == '*'){
+				//Bit harder, read until the next */
+				while((eatChar = s[i++]) != EOF){
+					if(eatChar == '*'){
+						lookAhead = s[i++];
+						if(lookAhead == '/')
+							break;
+						else if(lookAhead == '*')
+							s[i] =first;
+					}
+				}
+			}
+
+		if(first == '/' && second =='/')
+			;
+		else if(first == '/' && second == '*')
+			;
+		else if(previous == '/' && first == '/')
+			;
+		else if(previous == '/' && first == '*')
+			;
+		else
+			s[j++] = first;
+		previous=first;
+		first=second;
+	} // while
+	s[j++] = first;
+	s[j++] = '\0';
+	
+	/* now make sure variable declarations are followed by spaces */
+	for (i=0; i<strlen(s); i++)
+	  if (strchr(",;[=\t", s[i])) s[i]=' ';
+} // cogen_uncomment
+
+
 /* *****************************************************************************
 * cogen_comp_declare: write the declaration part from the component instance
 *   that is the component parameter structure, with positioning stuff
@@ -399,14 +454,38 @@ static void cogen_defundef(struct comp_inst *comp, List l, char define_it)
 ***************************************************************************** */
 int cogen_comp_declare(struct comp_inst *comp)
 {
-  int warnings     =0;
-  int nb_parameters=0;
+  int  warnings     =0;
+  int  nb_parameters=0;
+  long decl_code_len=0;
   
   //if (verbose) fprintf(stderr, "Writing component   %s=%s() [%i] DECLARE\n", 
   //  comp->name, comp->def->name, comp->index);
   
   if (!comp->def->flag_defined_structure) {
     int index=0;
+    
+    /* we build the DECLARE code and make sure all declared variables
+       appear as ' <var> ' tokens. The DECLARE code has higher priority
+       then SETTINGS/OUTPUT as we can not change it. When not found in 
+       the DECLARE, we add each SETTINGS/OUTPUT variable */
+       
+    /* count the declare code length */
+    if(list_len(comp->def->decl_code->lines) > 0) {
+      List_handle liter = list_iterate(comp->def->decl_code->lines);
+      char *line;                       /* Single code line. */
+      while(line = list_next(liter)) decl_code_len+=strlen(line);
+    }
+
+    /* allocate */
+    char decl_code_lines[decl_code_len];
+    decl_code_lines[0]='\0';
+    /* append all lines and uncomment */
+    if(list_len(comp->def->decl_code->lines) > 0) {
+      List_handle liter = list_iterate(comp->def->decl_code->lines);
+      char *line;                       /* Single code line. */
+      while(line = list_next(liter)) strcat(decl_code_lines, line);
+    }
+    cogen_uncomment(decl_code_lines); /* also changes non var chars to spaces */
     
     coutf("/* component %s=%s() [%i] DECLARE */",
       comp->name, comp->def->name, comp->index);
@@ -433,45 +512,16 @@ int cogen_comp_declare(struct comp_inst *comp)
         while(c_formal = list_next(liter))
         {
           /* check if the SETTING/PRIVATE parameter name also appears in the 
-             DECLARE code as a single word */
-          char flag_is_in_declare_code=0;
+             DECLARE code as a single word. Then we ignore it to avoid name clash */
+                    
           nb_parameters++;
 
-          if(list_len(comp->def->decl_code->lines) > 0) {
-            List_handle liter = list_iterate(comp->def->decl_code->lines);
-            char *line;                       /* Single code line. */
-            while(line = list_next(liter))
-            {
-              char *subline = line;
-              char *p;
-              while (p=strstr(subline, c_formal->id)) {
-                /* the parameter name appears in DECLARE code */
-                int char_before=0;
-                int char_after =0;
-                if (p > line) 
-                  char_before=*(p-1); /* char before the match */
-                if (p+strlen(c_formal->id) <= line+strlen(line)) 
-                  char_after=*(p+strlen(c_formal->id)); /* char after the match */
-                /* check if appears as a single word */
-                if ( (!char_before || (char_before && strchr(" ,\t*",  char_before))) &&
-                     (!char_after  || (char_after  && strchr(" ,\t;[=", char_after ))) )
-                  flag_is_in_declare_code++;
-                else subline = p+strlen(c_formal->id);
-                if (flag_is_in_declare_code) break;
-                if (p+strlen(c_formal->id) >= line+strlen(line)) break;
-              }
-              if (flag_is_in_declare_code) break;
-            }
-            list_iterate_end(liter);
-          }
-          if (flag_is_in_declare_code) {
-            /* already in DECLARE code, print warning */
-            fprintf(stderr,"Warning: Component %s=%s() DECLARE block has duplicate reference to '%s' parameter.\n"
-                       "         This may lead to a compilation error. In this case, edit component\n"
-                       "         and remove the duplicate reference in its DECLARE block.\n"
-                       "         File: %s\n",
-        	comp->name, comp->def->name, comp->def->decl_code->quoted_filename);
-          }
+          /* search for SETTING/PRIVATE in the DECLARE uncommented code */
+          char token[strlen(c_formal->id)+2];
+          sprintf(token, " %s ", c_formal->id);
+
+          if (strstr(decl_code_lines, token))  
+            continue; /* already in DECLARE code, no need to add it to the structure */
 
           /* scalar parameter */
           if (c_formal->type != instr_type_string)

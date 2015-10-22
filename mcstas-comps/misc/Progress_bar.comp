@@ -126,7 +126,7 @@ SAVE
         "Component index [1]",
         "Intensity",
         "prof", 1, mcNUMCOMP, mcNUMCOMP-1,
-        &mcNCounter[1],&mcPCounter[1],&mcP2Counter[1],
+        &(mcinstrument->counter_N)[1],&(mcinstrument->counter_P)[1],&(mcinstrument->counter_P2)[1],
         filename);
 
   }

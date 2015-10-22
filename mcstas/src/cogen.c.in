@@ -343,6 +343,7 @@ static void cogen_defundef(struct comp_inst *comp, List l, char define_it)
     liter = list_iterate(l);
     while(c_formal = list_next(liter)) {
       int flag_noconflict=1;
+      if (!strlen(c_formal->id)) continue;
       switch (define_it) {
       case GLOBAL_INSTANCE_PAR_REF:
         coutf("  #define %s (" ID_PRE "instance_%s->parameters.%s)", 
@@ -399,8 +400,9 @@ static void cogen_defundef(struct comp_inst *comp, List l, char define_it)
 char *cogen_uncomment(char *s){
   int first,second ,eatChar,lookAhead,previous;
   int i=0, j=0;
+  if (!s || !strlen(s)) return(s);
 	first = s[i++];
-	while((second = s[i++]) != EOF){
+	while((second = s[i++]) != EOF && second != '\0' && j < strlen(s)){
 		if(first == '/')
 			if(second == '/'){
 				//Delete til the end of the line
@@ -439,7 +441,7 @@ char *cogen_uncomment(char *s){
 	
 	/* now make sure variable declarations are followed by spaces */
 	for (i=0; i<strlen(s); i++)
-	  if (strchr(",;[=\t", s[i])) s[i]=' ';
+	  if (strchr(",;[=*\t", s[i])) s[i]=' ';
 } // cogen_uncomment
 
 
@@ -507,16 +509,16 @@ int cogen_comp_declare(struct comp_inst *comp)
         struct comp_iformal *c_formal;/* Name of component formal input parameter */
         
         coutf("  /* Component type '%s' %s parameters */", 
-          comp->def->name, index == 0 ? "setting" : "private");
+          comp->def->name, index == 0 ? "setting" : "internal");
         
         while(c_formal = list_next(liter))
         {
-          /* check if the SETTING/PRIVATE parameter name also appears in the 
+          /* check if the SETTING/INTERNAL parameter name also appears in the 
              DECLARE code as a single word. Then we ignore it to avoid name clash */
                     
           nb_parameters++;
 
-          /* search for SETTING/PRIVATE in the DECLARE uncommented code */
+          /* search for SETTING/INTERNAL in the DECLARE uncommented code */
           char token[strlen(c_formal->id)+2];
           sprintf(token, " %s ", c_formal->id);
 
@@ -589,7 +591,7 @@ int cogen_comp_declare(struct comp_inst *comp)
 * cogen_comp_init_par: write the setting/output parameter allocation in [section]
 * input:  a component instance structure pointer (not modified)
 *         an instrument structure pointer (not modified)
-*         a section as "SETTING" or "PRIVATE"/"OUTPUT"
+*         a section as "SETTING" or "INTERNAL"/"OUTPUT"
 *
 * code is generated in function [comp]_[section=init/save/display/finally]
 * called by: cogen_comp_section
@@ -666,7 +668,7 @@ int cogen_comp_init_defpar(struct comp_inst *comp)
     {
       struct Symtab_entry *entry = symtab_lookup(comp->defpar, c_formal->id);
       char                *val   = exp_tostring(entry->val);
-      coutf("  #define %s (%s)", c_formal->id, val);
+      coutf("  #define %s %s", c_formal->id, val);
       if (c_formal->type == instr_type_string || c_formal->type == instr_type_vector)
       {
         /* a string definition parameter should be converted into a setting parameter to avoid e.g.
@@ -1017,8 +1019,8 @@ int cogen_comp_setpos(struct comp_inst *comp, struct comp_inst *last, struct ins
   /* setting parameters of the component */
   cogen_comp_init_par(comp, instr, "SETTING");  // specific to each instance
 
-  /* output parameters of the component (private/declare) */
-  cogen_comp_init_par(comp, instr, "PRIVATE");  // specific to each instance
+  /* output parameters of the component (internal/declare) */
+  cogen_comp_init_par(comp, instr, "INTERNAL");  // specific to each instance
   
   /* position/rotation */
   cogen_comp_init_position(comp, last, instr); // specific to each instance

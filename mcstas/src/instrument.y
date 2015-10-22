@@ -79,7 +79,7 @@
 %token TOK_INITIALISE "INITIALISE" 
 %token TOK_INSTRUMENT "INSTRUMENT"
 %token TOK_DISPLAY    "DISPLAY"
-%token TOK_PRIVATE    "PRIVATE" /* same as OUTPUT PARAMETERS */
+%token TOK_INTERNAL   "INTERNAL" /* same as OUTPUT PARAMETERS */
 %token TOK_PARAMETERS "PARAMETERS"
 %token TOK_RELATIVE   "RELATIVE"
 %token TOK_ROTATED    "ROTATED"
@@ -324,7 +324,7 @@ out_par:    /* empty */
       {
         $$ = $3;
       }
-    | "PRIVATE" "PARAMETERS" comp_iformallist
+    | "INTERNAL" "PARAMETERS" comp_iformallist
       {
         $$ = $3;
       }

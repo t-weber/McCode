@@ -132,6 +132,10 @@ SHARE
   %include "general.c"
   %include "intersection.c"
   %include "vitess-lib"
+  
+  #define MCSTAS_SHARE
+  %include "chopper_fermi.c" /* include functions */
+  #undef MCSTAS_SHARE
 %}
 
 DECLARE
@@ -142,9 +146,7 @@ DECLARE
   double optimal_wl; /* optimal wavelength */
   VectorType pos_ch; /* centre pos. of the FC in the frame of the exit of the prev. comp. [cm] */
   
-  #define MCSTAS_SHARE
-  %include "chopper_fermi.c" /* include functions */
-  #undef MCSTAS_SHARE
+  
 %}
 
 INITIALIZE

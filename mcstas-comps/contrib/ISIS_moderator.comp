@@ -88,7 +88,7 @@ SHARE
   int timeEnd(char*);
   int energyBin(char*,double,double,double*,double*);
   int notComment(char*);
-  double strArea();
+  double strArea(double dist, double rtmodX, double rtmodY, double focus_xw, double focus_yh);
 
 
 double** matrix(const int m,const int n)
@@ -764,7 +764,7 @@ int cmdnumberI(char *mc,int* num,const int len)
       return efile;
     }
 
-  double strArea()
+  double strArea(double dist, double rtmodX, double rtmodY, double focus_xw, double focus_yh)
     {
       /*
 	 Returns the mean Str view of the viewport
@@ -1041,7 +1041,7 @@ INITIALIZE
   /* Do solid angle correction if required */
   // if SAC=0/1 solid angle is determined
   if (SAC)
-    angleArea=(dist>0.0) ? strArea() : 2*3.141592654;
+    angleArea=(dist>0.0) ? strArea(dist, rtmodX, rtmodY, focus_xw, focus_yh) : 2*3.141592654;
   else
     angleArea=1.0;
   

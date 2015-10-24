@@ -435,6 +435,8 @@ COMPONENT Sample_copy = COPY(Sample)(p_interact=0.1)
   AT (0, 0, 0)     RELATIVE SamplePos
   ROTATED (0,45,0) RELATIVE SamplePos
   EXTEND %{
+    Rotation R;
+    
     flag_sample += SCATTERED;
     
     rot_set_rotation(R, RotateNeutronY*DEG2RAD, 0, 0); 

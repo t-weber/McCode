@@ -1150,7 +1150,7 @@ int cogen_decls(struct instr_def *instr)
       coutf("  %s %s;", instr_formal_type_names_real[i_formal->type], i_formal->id);
       numipar++;
     }
-    else
+    else if (!numipar)
       coutf("  char %s_has_no_parameter;", instr->name);
   }
   list_iterate_end(liter);
@@ -1708,7 +1708,9 @@ int cogen_trace(struct instr_def *instr)
       cogen_defundef(comp, comp->def->out_par, GLOBAL_INSTANCE_PAR_REF);
 
       // define instrument state parameters (not in conflict with comp)
-      cogen_defundef(comp, instr->formals, INSTRUMENT_PAR_VALUE); /* print warning if conflicting parameter found ? */
+      // this is commented as symbols already resolved from instrument.y:topatexp
+      // which calls exp_id to use exact expression for instrument parameter.
+      // cogen_defundef(comp, instr->formals, INSTRUMENT_PAR_VALUE); /* print warning if conflicting parameter found ? */
     }
     // coordinate transformations (wrt to PREVIOUS)
     coutf("      " ID_PRE "coordschange(" 

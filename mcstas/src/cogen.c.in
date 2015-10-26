@@ -636,7 +636,13 @@ static void cogen_comp_init_par(struct comp_inst *comp, struct instr_def *instr,
           coutf("  " ID_PRE "instance_%s->parameters.%s = %s;", comp->name, par->id, val);
         str_free(val);
       }
-      /* define the symbol right after assignment so that we can use it in further parameters */
+      
+    }
+    list_iterate_end(list_par);
+    /* define the symbols */
+    list_par = list_iterate(l);
+    while((par = list_next(list_par)) != NULL)
+    {
       coutf("  #define %s (" ID_PRE "instance_%s->parameters.%s)", par->id, comp->name, par->id);
     }
     list_iterate_end(list_par);

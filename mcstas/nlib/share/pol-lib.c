@@ -72,8 +72,8 @@ int mcmagnet_init(){
     Rotation rotLM; \
     Coords   posLM = POS_A_CURRENT_COMP; \
     rot_transpose(ROT_A_CURRENT_COMP, rotLM); \
-    mcMagnetPrecession(mcnlx, mcnly, mcnlz, mcnlt, mcnlvx, mcnlvy, mcnlvz, \
-	   	       &mcnlsx, &mcnlsy, &mcnlsz, dt, posLM, rotLM); \
+    mcMagnetPrecession(x, y, z, t, vx, vy, vz, \
+	   	       &sx, &sy, &sz, dt, posLM, rotLM); \
   } while(0)
 #endif
 
@@ -393,14 +393,19 @@ void SimpleNumMagnetPrecession(double mc_pol_x, double mc_pol_y,
   const double mc_pol_startTimeStep = 1e-5; // s
   double dummy1, dummy2;
   Rotation mc_pol_rotBack;
+  mcparticle particle;
 
   mcMagneticField=mcmagnet_get_field;
 
   //printf("pos_at_caller(xyz)( %g %g %g )\n", mc_pol_x,mc_pol_y,mc_pol_z);
   // change coordinates from current local system to lab system
-  mccoordschange(mc_pol_posLM, mc_pol_rotLM,
-		 &mc_pol_x, &mc_pol_y, &mc_pol_z,
-		 &mc_pol_vx, &mc_pol_vy, &mc_pol_vz, mc_pol_sx, mc_pol_sy, mc_pol_sz);
+  particle = mcsetstate(mc_pol_x, mc_pol_y, mc_pol_z,
+		 mc_pol_vx, mc_pol_vy, mc_pol_vz, mc_pol_time,
+		 *mc_pol_sx, *mc_pol_sy, *mc_pol_sz, 0);
+  mccoordschange(mc_pol_posLM, mc_pol_rotLM, &particle);
+  mc_pol_x =particle.x;  mc_pol_y =particle.y;  mc_pol_z =particle.z;
+  mc_pol_vx=particle.vx; mc_pol_vy=particle.vy; mc_pol_vz=particle.vz;
+  *mc_pol_sx=particle.sx; *mc_pol_sy=particle.sy; *mc_pol_sz=particle.sz;
   //printf("pos_at_labaftertranformation(xyz)( %g %g %g )\n", mc_pol_x,mc_pol_y,mc_pol_z);
 
   // get initial B-field value

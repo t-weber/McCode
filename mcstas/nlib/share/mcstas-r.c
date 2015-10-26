@@ -48,50 +48,6 @@ int (*mcMagneticField) (double, double, double, double,
 #ifndef MCSTAS_H
 
 /*******************************************************************************
-* mcstore_neutron: stores neutron coodinates into global array (per component)
-*******************************************************************************/
-void
-mcstore_neutron(MCNUM *s, int index, double x, double y, double z,
-               double vx, double vy, double vz, double t,
-               double sx, double sy, double sz, double p)
-{
-    double *dptr = &s[11*index];
-    *dptr++  = x;
-    *dptr++  = y ;
-    *dptr++  = z ;
-    *dptr++  = vx;
-    *dptr++  = vy;
-    *dptr++  = vz;
-    *dptr++  = t ;
-    *dptr++  = sx;
-    *dptr++  = sy;
-    *dptr++  = sz;
-    *dptr    = p ;
-} /* mcstore_neutron */
-
-/*******************************************************************************
-* mcrestore_neutron: restores neutron coodinates from global array
-*******************************************************************************/
-void
-mcrestore_neutron(MCNUM *s, int index, double *x, double *y, double *z,
-               double *vx, double *vy, double *vz, double *t,
-               double *sx, double *sy, double *sz, double *p)
-{
-    double *dptr = &s[11*index];
-    *x  =  *dptr++;
-    *y  =  *dptr++;
-    *z  =  *dptr++;
-    *vx =  *dptr++;
-    *vy =  *dptr++;
-    *vz =  *dptr++;
-    *t  =  *dptr++;
-    *sx =  *dptr++;
-    *sy =  *dptr++;
-    *sz =  *dptr++;
-    *p  =  *dptr;
-} /* mcrestore_neutron */
-
-/*******************************************************************************
 * mcsetstate: transfer parameters into global McStas variables 
 *******************************************************************************/
 mcparticle

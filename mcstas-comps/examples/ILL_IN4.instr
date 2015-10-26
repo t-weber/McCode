@@ -186,7 +186,7 @@ DECLARE %{
     
     /* write q axis */
     fprintf(fid, 
-      "# WAVEVECTOR vector of m=%i values %g:%g in [Angstroem-1]: q\n",
+      "# WAVEVECTOR vector of m=%li values %g:%g in [Angstroem-1]: q\n",
       bin_q, min_q, max_q);
     for (index_q=0; index_q < bin_q; index_q++) {
       double q = min_q+index_q*(max_q-min_q)/bin_q;
@@ -196,7 +196,7 @@ DECLARE %{
     
     /* write w axis */
     fprintf(fid, 
-      "# ENERGY vector of n=%i values %g:%g in [meV]: w\n",
+      "# ENERGY vector of n=%li values %g:%g in [meV]: w\n",
       bin_w, min_w, max_w);
     for (index_w=0; index_w < bin_w; index_w++) {
       double w = min_w+index_w*(max_w-min_w)/bin_w;
@@ -206,7 +206,7 @@ DECLARE %{
     
     /* write Sqw matrix as zero except when on grid */
     fprintf(fid, 
-      "# matrix of S(q,w) values (m=%i rows x n=%i columns), one row per q value: sqw\n",
+      "# matrix of S(q,w) values (m=%li rows x n=%li columns), one row per q value: sqw\n",
       bin_q, bin_w);
     for (index_q=0; index_q < bin_q; index_q++) {
       for (index_w=0; index_w < bin_w; index_w++) {

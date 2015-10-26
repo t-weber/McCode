@@ -260,7 +260,7 @@ INITIALIZE
   Honeycomb_guide_Init(&GVars,
     w1, w2, l, R0,
     Qc, alpha, m, W, nslit, d,
-    Gx, Gy, Gz,mright1, mleft, mleftup, mrightdown, mrightup, mleftdown);
+    Gx, Gy, Gz,mright, mleft, mleftup, mrightdown, mrightup, mleftdown);
 
   if (!G) for (i=0; i<7; GVars.A[i++] = 0);
 

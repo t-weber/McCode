@@ -180,8 +180,8 @@ SETTING PARAMETERS (l,
 		curvature=0	)
 
 OUTPUT PARAMETERS (
-	guideInfo,latestParticleCollision,Gx,Gy,Gz;  // Local gravity vector, is set once in INITIALIZE
-	Gx0, Gy0, Gz0,Circ,dynamicalSegLength;
+	guideInfo,latestParticleCollision,Gx,Gy,Gz,
+	Gx0, Gy0, Gz0,Circ,dynamicalSegLength
 	)
 
 SHARE

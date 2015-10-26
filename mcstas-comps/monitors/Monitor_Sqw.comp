@@ -80,13 +80,13 @@
 * %End
 ******************************************************************************/
 DEFINE COMPONENT Monitor_Sqw 
-DEFINITION PARAMETERS (string options=0, string filename=0,string geometry=0, user3=FLT_MAX, username3=0)
+DEFINITION PARAMETERS ( user3=FLT_MAX)
 SETTING PARAMETERS (xwidth=0, yheight=0, zdepth=0, 
   xmin=0, xmax=0, ymin=0, ymax=0, zmin=0, zmax=0, radius=0,
   bins=0, min=-1e40, max=1e40,
-  int index=-1)
+  int index=-1,string options=0, string filename=0,string geometry=0,string username3=0)
 /* these are protected C variables */
-OUTPUT PARAMETERS (DEFS, Vars, detector, mean_vx, mean_vy, mean_vz, sum_p)
+OUTPUT PARAMETERS (DEFS, Vars, detector, mean_vx, mean_vy, mean_vz, sum_p, offdata)
 
 SHARE
 %{

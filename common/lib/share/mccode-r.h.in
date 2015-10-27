@@ -290,7 +290,7 @@ char  *mcsig_message;
 * after #define C sample, MC_GETPAR(C,x) would refer to component C, not to
 * component sample. Such are the joys of ANSI C.
 
-* Anyway the usage of MCGETPAR requires that we use sometimes bare names...
+* Anyway the usage of MC_GETPAR requires that we use sometimes bare names...
 */
 #define MC_GETPAR2(comp, par) (mcinstance_ ## comp->parameters.par)
 #define MC_GETPAR(comp, par) MC_GETPAR2(comp,par)
@@ -302,9 +302,9 @@ char  *mcsig_message;
 /* Name, position and orientation (both absolute and relative)  */
 /* Any component: For "redundancy", see comment by KN */
 
-#define NAME_COMP(comp) MC_GET(comp, name)
-#define TYPE_COMP(comp) MC_GET(comp, type)
-#define INDEX_COMP(comp) MC_GET(comp, index)
+#define NAME_COMP(comp) MC_GET(comp, name_)
+#define TYPE_COMP(comp) MC_GET(comp, type_)
+#define INDEX_COMP(comp) MC_GET(comp, index_)
 #define POS_A_COMP(comp) MC_GET(comp, position_absolute)
 #define POS_R_COMP(comp) MC_GET(comp, position_relative)
 #define ROT_A_COMP(comp) MC_GET(comp, rotation_absolute)

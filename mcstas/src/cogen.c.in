@@ -566,9 +566,9 @@ int cogen_comp_declare(struct comp_inst *comp)
      comp->def->name);
     coutf("struct " ID_PRE "class_%s_struct {", comp->def->name); 
       /* make struct: set, pos, rot, declare block */
-    coutf("  char     name[256]; /* e.g. %s */", comp->name);
-    coutf("  char     type[256]; /* %s */", comp->def->name);
-    coutf("  long     index; /* e.g. %i index in TRACE list */",
+    coutf("  char     name_[256]; /* e.g. %s */", comp->name);
+    coutf("  char     type_[256]; /* %s */", comp->def->name);
+    coutf("  long     index_; /* e.g. %i index in TRACE list */",
       index);
     cout( "  Coords   position_absolute;");
     cout( "  Coords   position_relative; /* wrt PREVIOUS */");
@@ -1015,9 +1015,9 @@ int cogen_comp_setpos(struct comp_inst *comp, struct comp_inst *last, struct ins
       ID_PRE, comp->name, "setpos", comp->name, comp->def->name, "SETTING", 
         comp->def->init_code->quoted_filename, comp->def->init_code->linenum);
   
-  coutf("  stracpy(" ID_PRE "instance_%s->name, \"%s\", 16384);", comp->name, comp->name);
-  coutf("  stracpy(" ID_PRE "instance_%s->type, \"%s\", 16384);", comp->name, comp->def->name);
-  coutf("  " ID_PRE "instance_%s->index=%i;", comp->name, comp->index);
+  coutf("  stracpy(" ID_PRE "instance_%s->name_, \"%s\", 256);", comp->name, comp->name);
+  coutf("  stracpy(" ID_PRE "instance_%s->type_, \"%s\", 256);", comp->name, comp->def->name);
+  coutf("  " ID_PRE "instance_%s->index_=%i;", comp->name, comp->index);
   
   /* definition parameters */
   warnings += cogen_comp_init_defpar(comp); // specific to each instance
@@ -1209,7 +1209,7 @@ int cogen_decls(struct instr_def *instr)
   
   /* 2b. instrument structure */
   cout("struct " ID_PRE "instrument_struct {");
-  coutf("  char   name[256]; /* the name of this instrument e.g. '%s' */", instr->name);
+  coutf("  char   name_[256]; /* the name of this instrument e.g. '%s' */", instr->name);
   cout( "/* Counters per component instance */");
   coutf("  double counter_AbsorbProp[%i]; /* absorbed events in PROP routines */", list_len(instr->complist)+2);
   coutf("  double counter_N[%i], counter_P[%i], counter_P2[%i]; /* event counters after each component instance */", 
@@ -1413,7 +1413,7 @@ int cogen_section(struct instr_def *instr, char *section, char *section_lower, s
     /* default values for instrument parameters are set in mcreadparams */
     cout("  /* " ID_PRE "code_main/" ID_PRE "parseoptions/" ID_PRE "readparams "
       "sets instrument parameters value */");
-    coutf("  stracpy(" ID_PRE "instrument->name, \"%s\", 256);", instr->name);
+    coutf("  stracpy(" ID_PRE "instrument->name_, \"%s\", 256);", instr->name);
   } 
   else if (!strcmp(section, "SAVE"))
     coutf("  if (!handle) %ssiminfo_init(NULL);", ID_PRE);
@@ -1707,16 +1707,9 @@ int cogen_trace(struct instr_def *instr)
     coutf("    case %i:", comp->index);
     coutf("      /* component %s=%s() [%i] parameters */", comp->name, comp->def->name, comp->index);
 
+    // allow reference to e.g. MC_GETPAR(MYSELF,par)
     if (comp->split || comp->when || list_len(comp->jump) > 0) {
       coutf("      #define " ID_PRE "instance_MYSELF " ID_PRE "instance_%s", comp->name);
-      warnings += cogen_comp_init_defpar(comp); // specific to each instance
-      cogen_defundef(comp, comp->def->set_par, GLOBAL_INSTANCE_PAR_REF);
-      cogen_defundef(comp, comp->def->out_par, GLOBAL_INSTANCE_PAR_REF);
-
-      // define instrument state parameters (not in conflict with comp)
-      // this is commented as symbols already resolved from instrument.y:topatexp
-      // which calls exp_id to use exact expression for instrument parameter.
-      // cogen_defundef(comp, instr->formals, INSTRUMENT_PAR_VALUE); /* print warning if conflicting parameter found ? */
     }
     // coordinate transformations (wrt to PREVIOUS)
     coutf("      " ID_PRE "coordschange(" 
@@ -1784,10 +1777,6 @@ int cogen_trace(struct instr_def *instr)
       list_iterate_end(liter2);
     }
     if (comp->split || comp->when || list_len(comp->jump) > 0) {
-      cogen_defundef(comp, comp->def->def_par, PAR_UNDEF);
-      cogen_defundef(comp, comp->def->set_par, PAR_UNDEF);
-      cogen_defundef(comp, comp->def->out_par, PAR_UNDEF);
-      cogen_defundef(NULL, instr->formals, PAR_UNDEF);
       cout("      #undef " ID_PRE "instance_MYSELF");
     }
     cout("      break;");

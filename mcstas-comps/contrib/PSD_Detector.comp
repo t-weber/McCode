@@ -205,7 +205,7 @@ SETTING PARAMETERS (xwidth=0, radius=0, awidth=0, yheight=0, zdepth=0.03,
   yChDivRelSigma=0, bufsize=0, restore_neutron=0, angle=0,
   string type=0, string filename=0)
 OUTPUT PARAMETERS (PSD_N, PSD_p, PSD_p2, EAP,M1P1,PosAP, EAT,M1T1,PosAT,
-  CrossSectionHe, CountNeutrons, GeomCumul, AbsCumul, SensVolCumul, DetCumul, PHSpectrum,
+  CrossSectionHe, CountNeutrons, GeomCumul, AbsCumul, SensVolCumul, DetCumul, PHSpectrum, PHSpectrum0,
   PHSpectrum2,PHSpectrum_n,nH_p,nH_t,FullEnergyP,FullEnergyT,VariousErrors,
   DetectorType, 
   DEFS, Vars)

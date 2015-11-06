@@ -442,6 +442,8 @@ char *cogen_uncomment(char *s){
 	/* now make sure variable declarations are followed by spaces */
 	for (i=0; i<strlen(s); i++)
 	  if (strchr(",;[=*\t", s[i])) s[i]=' ';
+	  
+	return(s);
 } // cogen_uncomment
 
 
@@ -457,14 +459,12 @@ char *cogen_uncomment(char *s){
 int cogen_comp_declare(struct comp_inst *comp)
 {
   int  warnings     =0;
-  int  nb_parameters=0;
-  long decl_code_len=0;
-  
-  //if (verbose) fprintf(stderr, "Writing component   %s=%s() [%i] DECLARE\n", 
-  //  comp->name, comp->def->name, comp->index);
   
   if (!comp->def->flag_defined_structure) {
     int index=0;
+    char *decl_code_uncommented=NULL;
+    int  nb_parameters=0;
+    long decl_code_len=0;
     
     /* we build the DECLARE code and make sure all declared variables
        appear as ' <var> ' tokens. The DECLARE code has higher priority
@@ -479,16 +479,17 @@ int cogen_comp_declare(struct comp_inst *comp)
     }
 
     /* allocate */
-    char decl_code_lines[decl_code_len];
+    char decl_code_lines[decl_code_len+2];
     decl_code_lines[0]='\0';
     /* append all lines and uncomment */
-    if(list_len(comp->def->decl_code->lines) > 0) {
+    if(list_len(comp->def->decl_code->lines) > 0 && decl_code_len) {
       List_handle liter = list_iterate(comp->def->decl_code->lines);
       char *line;                       /* Single code line. */
       while(line = list_next(liter)) strcat(decl_code_lines, line);
+      cogen_uncomment(decl_code_lines); /* also changes non var chars to spaces */
+      decl_code_uncommented = str_dup(decl_code_lines);
     }
-    cogen_uncomment(decl_code_lines); /* also changes non var chars to spaces */
-    
+
     coutf("/* component %s=%s() [%i] DECLARE */",
       comp->name, comp->def->name, comp->index);
   
@@ -499,7 +500,7 @@ int cogen_comp_declare(struct comp_inst *comp)
     coutf("struct " ID_PRE "%s_parameters_struct {", comp->def->name);
     
     /* put there setting, output and declare code */
-    for (index=0; index <2; index++) {
+    for (index=0; index <2; index++) { // loop on SETTING then INTERNAL/OUTPUT
       List l = (index == 0 ? comp->def->set_par : comp->def->out_par);
       
       if(list_len(l) > 0)
@@ -511,7 +512,7 @@ int cogen_comp_declare(struct comp_inst *comp)
         coutf("  /* Component type '%s' %s parameters */", 
           comp->def->name, index == 0 ? "setting" : "internal");
         
-        while(c_formal = list_next(liter))
+        while(c_formal = list_next(liter))  // loop on parameters
         {
           /* check if the SETTING/INTERNAL parameter name also appears in the 
              DECLARE code as a single word. Then we ignore it to avoid name clash */
@@ -522,7 +523,7 @@ int cogen_comp_declare(struct comp_inst *comp)
           char token[strlen(c_formal->id)+2];
           sprintf(token, " %s ", c_formal->id);
 
-          if (strstr(decl_code_lines, token))  
+          if (decl_code_uncommented && strstr(decl_code_uncommented, token))  
             continue; /* already in DECLARE code, no need to add it to the structure */
 
           /* scalar parameter */
@@ -535,6 +536,7 @@ int cogen_comp_declare(struct comp_inst *comp)
         list_iterate_end(liter);
       }
     } /* for List in (setpar outpar) */
+    str_free(decl_code_uncommented);
     
     /* Output the user declaration code block. */
     if (list_len(comp->def->decl_code->lines) > 0) {
@@ -569,7 +571,7 @@ int cogen_comp_declare(struct comp_inst *comp)
     coutf("  char     name_[256]; /* e.g. %s */", comp->name);
     coutf("  char     type_[256]; /* %s */", comp->def->name);
     coutf("  long     index_; /* e.g. %i index in TRACE list */",
-      index);
+      comp->index);
     cout( "  Coords   position_absolute;");
     cout( "  Coords   position_relative; /* wrt PREVIOUS */");
     cout( "  Rotation rotation_absolute;");

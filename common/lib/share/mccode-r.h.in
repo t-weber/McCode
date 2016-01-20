@@ -20,7 +20,7 @@
 *
 *   struct mcinputtable_struct mcinputtable[];
 *   int mcnumipar;
-*   char mcinstrument_name[], mcinstrument_source[];
+*   char mcinstrument_name[], mcinstrument_source[], instrument_code[];
 *   int mctraceenabled, mcdefaultmain;
 *   extern MCNUM  mccomp_storein[];
 *   extern MCNUM  mcAbsorbProp[];

@@ -1942,7 +1942,7 @@ comp_formals_actuals(struct comp_inst *comp, Symtab actuals)
       Symtab_handle siter2;
       struct Symtab_entry *entry2;
 
-      fprintf(stderr, "\nERROR: Unmatched actual parameter %s for component %s=%s() at line %s:%d."
+      fprintf(stderr, "\nERROR: Unmatched actual parameter %s for component %s=%s() at line %s:%d. "
         "Please change its name to a valid one:\n",
         entry->name, comp->name, comp->def->name,
         instr_current_filename, instr_current_line);

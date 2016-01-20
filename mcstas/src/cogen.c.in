@@ -1200,7 +1200,8 @@ int cogen_decls(struct instr_def *instr)
         list_iterate_end(liter2);
       }
       if (comp->split) {
-        coutf("  long Split_%s;", comp->name);
+        coutf("  long Split_%s_counter;", comp->name);
+        coutf("  int  Split_%s_index;", comp->name);
         coutf("  " ID_PRE "particle Split_%s_particle;", comp->name);
       }
     }
@@ -1301,6 +1302,7 @@ int cogen_decls(struct instr_def *instr)
   }
   list_iterate_end(liter);
   coutf("int %sNUMCOMP = %d;", ID_PRE, list_len(instr->complist));
+  coutf("%sparticle %sparticle_trajectory[%d];", ID_PRE, ID_PRE, list_len(instr->complist)+1);
   
   /* 7. User's declarations from the instrument definition file. */
   cout("/* User declarations from instrument definition. Can define functions. */");
@@ -1650,6 +1652,28 @@ int cogen_trace(struct instr_def *instr)
   coutf("* instrument '%s' %s", instr->name, "TRACE");
   cout("***************************************************************************** */");
   cout("");
+  
+  /* store/restore handler */
+  cout("int " ID_PRE "raytrace_store(" ID_PRE "particle * " ID_PRE MCCODE_PARTICLE ") { // STORE at current component index");
+  cout("  if (" ID_PRE MCCODE_PARTICLE "->index >= 0 && " ID_PRE MCCODE_PARTICLE "->index <= " ID_PRE "NUMCOMP) {");
+  cout("    memcpy(&" ID_PRE "particle_trajectory[" ID_PRE MCCODE_PARTICLE "->index], " 
+                      ID_PRE MCCODE_PARTICLE ", "
+                      "sizeof(" ID_PRE "particle)); /* store the " MCCODE_PARTICLE " state before propagation */");
+  cout("    return(" ID_PRE MCCODE_PARTICLE "->index);");
+  cout("  } else return(0);");
+  cout("}"); cout("");
+  
+  cout("int " ID_PRE "raytrace_restore(" ID_PRE "particle * " ID_PRE MCCODE_PARTICLE ", int restore_index) { // RESTORE from given component index");
+  cout("  if (restore_index > 0 && restore_index <= " ID_PRE "NUMCOMP) {");
+  cout("    int index=" ID_PRE MCCODE_PARTICLE "->index;");
+  cout("    memcpy(" ID_PRE MCCODE_PARTICLE ", "
+                     "&" ID_PRE "particle_trajectory[restore_index], " 
+                     "sizeof(" ID_PRE "particle));");
+  cout("    " ID_PRE MCCODE_PARTICLE "->index = index; // we keep the component index we had reached");
+  cout("    return(" ID_PRE MCCODE_PARTICLE "->index);");
+  cout("  } else return(0);");
+  cout("}"); cout("");
+  
 
   /* then write the main code, which calls component ones */
   coutf("int %s%s(" ID_PRE "particle " ID_PRE MCCODE_PARTICLE "_particle) { /* called by %scode_main for %s:%s */", 
@@ -1689,20 +1713,20 @@ int cogen_trace(struct instr_def *instr)
       list_iterate_end(liter2);
     }
     if (comp->split) {
-      coutf("  " ID_PRE "instrument->logic.Split_%s=0;", comp->name);
+      coutf("  " ID_PRE "instrument->logic.Split_%s_counter=0;", comp->name);
+      coutf("  " ID_PRE "instrument->logic.Split_%s_index  =%d;", comp->name, comp->index);
       coutf("  " ID_PRE "instrument->logic.Split_%s_particle=" ID_PRE MCCODE_PARTICLE "_particle;", comp->name);
     }
   }
   list_iterate_end(liter);
 
   cout("");
-  cout("  /* the main iteration loop for one incoming neutron */");
-  cout("  while (!ABSORBED) { /* iterate neutron event until absorbed */");
-  cout("    " ID_PRE "particle " ID_PRE MCCODE_PARTICLE "_save = " ID_PRE MCCODE_PARTICLE "_particle;");
+  cout("  /* the main iteration loop for one incoming " MCCODE_PARTICLE " */");
+  cout("  while (!ABSORBED) { /* iterate " MCCODE_PARTICLE " event until absorbed */");
   cout("    " ID_PRE "ret++;");
-  cout("    switch (" ID_PRE MCCODE_PARTICLE "->index) { /* send neutron event to component instance */");
+  cout("    switch (" ID_PRE MCCODE_PARTICLE "->index) { /* send " MCCODE_PARTICLE " event to component instance */");
   cout("    case 0:");
-  
+
   /* now we produce the list of 'case' statements for each component index, with the attached logic */
   liter = list_iterate(instr->complist);
   while((comp = list_next(liter)) != NULL) {
@@ -1718,17 +1742,20 @@ int cogen_trace(struct instr_def *instr)
       ID_PRE "instance_%s->position_relative, " 
       ID_PRE "instance_%s->rotation_relative, " ID_PRE MCCODE_PARTICLE ");",
       comp->name, comp->name);
+      
+    // store neutron in trajectory cache (STORE/RESTORE)
+    cout("      " ID_PRE "raytrace_store(" ID_PRE MCCODE_PARTICLE ");");
 
     if (comp->group) // GROUP
       if (!strcmp(comp->name, comp->group->first_comp))
-        coutf("      " ID_PRE "instrument->logic.Group_%s=0; /* enter the group */", comp->group->name);
+        coutf("      " ID_PRE "instrument->logic.Group_%s=0; /* enter the group %s */", comp->group->name, comp->group->name);
 
     // SPLIT counters are initiated once
     if (comp->split) {
       char *exp=exp_tostring(comp->split);
-      coutf("      if (!" ID_PRE "instrument->logic.Split_%s) { /* store initial SPLIT particle */", comp->name);
+      coutf("      if (!" ID_PRE "instrument->logic.Split_%s_counter) { /* store initial SPLIT particle */", comp->name);
       coutf("        p /= %s > 0 ? %s : 1;", exp, exp);
-      coutf("        " ID_PRE "instrument->logic.Split_%s=%s > 0 ? %s : 1;", comp->name, exp, exp);
+      coutf("        " ID_PRE "instrument->logic.Split_%s_counter=%s > 0 ? %s : 1;", comp->name, exp, exp);
       coutf("        " ID_PRE "instrument->logic.Split_%s_particle=" ID_PRE MCCODE_PARTICLE "_particle;", comp->name); // SPLIT
       cout( "      }");
       str_free(exp);
@@ -1785,31 +1812,34 @@ int cogen_trace(struct instr_def *instr)
     
   } /* end while comp list (case) */
   list_iterate_end(liter);
-  
+
   /* write de default case */
   cout("    default: /* last case: END -> ABSORB */");
-  cout("      ABSORBED=1; // normal end of neutron when no other logic/grammar");
+  cout("      ABSORBED=1; // normal end of " MCCODE_PARTICLE " when no other logic/grammar");
   cout("    } /* end switch component */");
   
   // split counters are handled here, unrolled from last to 1st
   liter = list_iterate_back(instr->complist);
   while((comp = list_previous(liter)) != NULL) {
     if (comp && comp->split) {
-      coutf("    if (" ID_PRE "instrument->logic.Split_%s-- > 0) " 
+      coutf("    if (ABSORBED && " 
+                     ID_PRE "instrument->logic.Split_%s_counter-- > 0 && " 
+                     ID_PRE MCCODE_PARTICLE "->index >= " ID_PRE "instrument->logic.Split_%s_index) " 
         ID_PRE MCCODE_PARTICLE "_particle=" ID_PRE "instrument->logic.Split_%s_particle;"
-        " /* put initial neutron back to split point */",
-        comp->name, comp->name);
+        " /* put initial " MCCODE_PARTICLE " back to split point */",
+        comp->name, comp->name, comp->name);
     }
   }
   list_iterate_end(liter);
   
-  cout("    /* if RESTORE, keep propagation, but restore neutron state */");
-  cout("    if (RESTORE)");
-  cout("      { " ID_PRE MCCODE_PARTICLE "_particle=" ID_PRE MCCODE_PARTICLE "_save; }");
+  cout("    /* if RESTORE, keep propagation index, and restore " MCCODE_PARTICLE " state */");
+  cout("    if (RESTORE) " ID_PRE "raytrace_restore(" ID_PRE MCCODE_PARTICLE ", RESTORE);");
+  cout("");
   cout("    " ID_PRE MCCODE_PARTICLE "->index++; /* we go to next comp normally */");
       
   cout("  } /* end while not absorbed */");
   cout("");
+
   cout("  DEBUG_LEAVE()");
   /* Debugging (final state). */
   cout("  DEBUG_STATE()");
@@ -1915,7 +1945,7 @@ cogen_header(struct instr_def *instr, char *output_name)
   /* these are needed for SCATTERED, ABSORB and RESTORE macros */
   cout("  long absorbed;  /* flag set to TRUE when this event is to be removed/ignored */");
   cout("  long scattered; /* flag set to TRUE when this event has interacted with the last component instance */");
-  cout("  long restore;   /* set to true if neutron event must be restored */");
+  cout("  long restore;   /* set to true if " MCCODE_PARTICLE " event must be restored */");
   cout("};");
   cout("typedef struct " ID_PRE "particle_struct " ID_PRE "particle;");
   cout("");
@@ -1992,16 +2022,16 @@ cogen_header(struct instr_def *instr, char *output_name)
       fclose(fid);
       content[index] = '\0';
       content_quoted = str_quote(content);
-      coutf("char  mcinstrument_code[]   = \"%s\";\n", content_quoted);
+      coutf("char  %sinstrument_code[]   = \"%s\";\n", ID_PRE, content_quoted);
       str_free(content_quoted);
       str_free(content);
     }
   }
   /* if option is not set, or source file can not be accessed */
   if (!index)
-    coutf("char  mcinstrument_code[]   = "
+    coutf("char  %sinstrument_code[]   = "
     "\"Instrument %s source code %s is not embedded in this executable.\\n"
-    "  Use --source option when running " MCCODE_NAME ".\\n\";", instr->name, instr->quoted_source);
+    "  Use --source option when running " MCCODE_NAME ".\\n\";", ID_PRE, instr->name, instr->quoted_source);
   
   cout("");
   if(instr->use_default_main)

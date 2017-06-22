@@ -11,30 +11,30 @@ the \MCX\ core team.
 
 \noindent
 \begin{itemize}
-\item{\bfseries Arm}  A generic \MCX component which defines a frame of reference
+\item\textbf{Arm}  A generic \MCX component which defines a frame of reference
       for other components.
-\item{\bfseries Component} One unit ({\em e.g.} optical element) in an x-ray beamline. These are considered as Types of elements to be instantiated in an Instrument description.
-\item{\bfseries Component Instance} A named Component (of a given Type) inserted in an Instrument description.
-\item{\bfseries Definition parameter} An input parameter for a component. For
+\item\textbf{Component} One unit ({\em e.g.} optical element) in an x-ray beamline. These are considered as Types of elements to be instantiated in an Instrument description.
+\item\textbf{Component Instance} A named Component (of a given Type) inserted in an Instrument description.
+\item\textbf{Definition parameter} An input parameter for a component. For
   example the radius of a sample component or the divergence of a collimator. Technically, a definition parameter 
   is translated into a literal constant, which prevents it from being edited at runtime. 
-\item{\bfseries Input parameter} For a component, either a definition parameter
+\item\textbf{ Input parameter} For a component, either a definition parameter
 or a setting parameter. These parameters are supplied by the user to
 define the characteristics of the particular instance of the component
 definition. For an instrument, a parameter that can be changed at
 simulation run-time.
-\item{\bfseries Instrument} An assembly of \MCX components defining
+\item\textbf{ Instrument} An assembly of \MCX components defining
       an x-ray beamline.
-\item{\bfseries Kernel} The \MCX language definition and the associated compiler
-\item{\bfseries Output parameter} An output parameter for a component.
+\item\textbf{ Kernel} The \MCX language definition and the associated compiler
+\item\textbf{ Output parameter} An output parameter for a component.
   For example the counts in a monitor. An output parameter may be
   accessed from the instrument in which the component is used using
   \verb`MC_GETPAR`.
-\item{\bfseries Run-time} C code, contained in the files
+\item\textbf{ Run-time} C code, contained in the files
   \verb+mcxtrace-r.c+ and \verb+mcxtrace-r.h+ included in the \MCX
   distribution, that declare functions and variables used by the
   generated simulations.
-\item{\bfseries Setting parameter} Similar to a definition parameter, but with the
+\item\textbf{ Setting parameter} Similar to a definition parameter, but with the
   restriction that the type of the parameter must be declared unless it is a number. In technical terms, 
   a setting parameter is translated into an actual variable (as opposed to a definition parameter) which 
   may be dynamically updated.

@@ -71,7 +71,6 @@ and the _rough versions themselves retired.
   ... and various Unit test/Example instruments
 
 8. New python/Qt based GUI/plotting tool
-9. Other Changes/additions:
 9. PowderN: incoherent scattering (computed from tables)
 10. Curved Bragg monochromator crystal
     Major improvements to the flat Bragg monochromator crystal
